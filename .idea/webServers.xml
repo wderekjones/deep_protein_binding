@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="d8ce39c5-76e3-4e69-9ab3-a8048b787f92" name="dlx" url="http://dlx.uky.edu">
+        <fileTransfer host="dlx.uky.edu" port="22" privateKey="$USER_HOME$/.ssh/id_rsa" rootFolder="/scratch/wdjo224" accessType="SFTP" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+      <webServer id="962d80ed-b7e6-4f34-8d52-e2625572a470" name="condo" url="http://condo.rc.uky.edu">
+        <fileTransfer host="condo.rc.uky.edu" port="22" privateKey="$USER_HOME$/.ssh/id_rsa" rootFolder="/home/wdjo224" accessType="SFTP" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

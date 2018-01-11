@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="dlx">
+    <serverData>
+      <paths name="condo">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/deep_protein_binding" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="dlx">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/ma721_hw1" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
