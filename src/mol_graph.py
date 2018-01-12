@@ -8,7 +8,6 @@ by
 David Duvenaud, Dougal Maclaurin, Jorge Aguilera-Iparraguirre, Rafael Gómez-Bombarelli, Timothy Hirzel, Alán Aspuru-Guzik, and Ryan P. Adams.
 '''
 import numpy as np
-from rdkit.Chem import MolFromSmiles
 from src.features import atom_features, bond_features
 
 degrees = [0, 1, 2, 3, 4, 5]
@@ -55,6 +54,7 @@ class MolGraph(object):
                  for neighbor in self_node.get_neighbors(neighbor_ntype)]
                 for self_node in self.nodes[self_ntype]]
 
+
 class Node(object):
     __slots__ = ['ntype', 'features', '_neighbors', 'rdkit_ix']
     def __init__(self, ntype, features, rdkit_ix):
@@ -71,21 +71,12 @@ class Node(object):
     def get_neighbors(self, ntype):
         return [n for n in self._neighbors if n.ntype == ntype]
 
-def graph_from_smiles_tuple(smiles_tuple):
-    graph_list = [graph_from_smiles(s) for s in smiles_tuple]
-    big_graph = MolGraph()
-    for subgraph in graph_list:
-        big_graph.add_subgraph(subgraph)
 
-    # This sorting allows an efficient (but brittle!) indexing later on.
-    big_graph.sort_nodes_by_degree('atom')
-    return big_graph
-
-def graph_from_smiles(smiles):
+def graph_from_mol(mol):
     graph = MolGraph()
-    mol = MolFromSmiles(smiles)
-    if not mol:
-        raise ValueError("Could not parse SMILES string:", smiles)
+    # mol = MolFromSmiles(smiles)
+    # if not mol:
+    #     raise ValueError("Could not parse SMILES string:", smiles)
     atoms_by_rd_idx = {}
     for atom in mol.GetAtoms():
         new_atom_node = graph.new_node('atom', features=atom_features(atom), rdkit_ix=atom.GetIdx())
@@ -100,4 +91,5 @@ def graph_from_smiles(smiles):
 
     mol_node = graph.new_node('molecule')
     mol_node.add_neighbors(graph.nodes['atom'])
+
     return graph
