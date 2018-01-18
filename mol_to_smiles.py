@@ -9,6 +9,8 @@
 
 import os
 import argparse
+import pandas as pd
+from tqdm import tqdm
 from rdkit import Chem
 import sys
 import rdkit.Chem.Descriptors as descr
@@ -21,27 +23,45 @@ parser.add_argument('-o', type=str, help="path to directory to output smiles fil
 args = parser.parse_args()
 
 
+# TODO: need to extract the name of the molecule and then pair this with the smiles representation...then store in a dataframe...then output to .csv
 
-def RetrieveMol2Block(fileLikeObject, delimiter="@<TRIPOS>MOLECULE"):
+
+def retrieve_mol2block(fileLikeObject, delimiter="@<TRIPOS>MOLECULE"):
     """generator which retrieves one mol2 block at a time
     """
+
+    # directly after the line @<TRIPOS>MOLECULE contains the name of the molecule
+    molname = None
+    prevline = ""
     mol2 = []
-    for line in fileLikeObject:
+    for line in fileLikeObject: # line will contain the molecule name followed by a newline character
         if line.startswith(delimiter) and mol2:
-            yield "".join(mol2)
+            yield (molname, "".join(mol2))
+            molname = ""
             mol2 = []
+        elif prevline.startswith(delimiter):
+            molname = line
         mol2.append(line)
+        prevline = line
     if mol2:
-        yield "".join(mol2)
+        yield (molname, "".join(mol2))
+        molname = ""
 
 
 if __name__ == "__main__":
-    with open(sys.argv[1]) as fi:
-        for mol2 in RetrieveMol2Block(fi):
-            rdkMolecule = Chem.MolFromMol2Block(mol2)
-            print(descr.MolWt(rdkMolecule))
-    for mol_file in os.listdir(args.i):
-        smiles = Chem.MolToSmiles(mol_file)
-        print(smiles)
+    output_df = pd.DataFrame()
+    smiles_list = []
+    molname_list = []
+    for mol_file in tqdm(os.listdir(args.i)): # could implement multiprocessing here to do this in parallel to build the lists
 
+        with open(args.i+"/"+mol_file) as fi:
+            for molname, mol2 in retrieve_mol2block(fi):
+                # need to better understand the consequences of using the sanitize=False setting, https://www.wildcardconsulting.dk/useful-information/the-good-the-bad-and-the-ugly-rdkit-molecules/
+                rdkMolecule = Chem.MolFromMol2Block(mol2, sanitize=False)
+                smiles = Chem.MolToSmiles(rdkMolecule)
+                molname_list.append(molname)
+                smiles_list.append(smiles)
 
+    output_df["molname"] = molname_list
+    output_df["smiles"] = smiles_list
+    output_df.to_csv(args.o, index=False)
