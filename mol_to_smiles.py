@@ -31,6 +31,9 @@ def retrieve_mol2block(fileLikeObject, delimiter="@<TRIPOS>MOLECULE"):
     """
 
     # directly after the line @<TRIPOS>MOLECULE contains the name of the molecule
+
+    #TODO: replace '-' with '_' and strip '\n' from the molname strings
+
     molname = None
     prevline = ""
     mol2 = []
