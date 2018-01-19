@@ -274,9 +274,9 @@ def parallelize(data, func, workers):
 def clean_data_job(smiles_df):
     # take an array of smiles (and labels) and test each to see if it can be read by RDKit, if not throw them out
     for row in smiles_df.itertuples():
-        mol = Chem.MolFromSmiles(row[1])
+        mol = Chem.MolFromSmiles(row[2])
         if mol is None:
-            print("found a corrupt input:\n index: {} \t smiles: {} \t active: {}".format(row[0], row[1], row[2]))
+            print("found a corrupt input:\n index: {} \t name: {} \t smiles: {}".format(row[0], row[1], row[2]))
             smiles_df.drop(row[0], axis=0, inplace=True)
     return smiles_df
 

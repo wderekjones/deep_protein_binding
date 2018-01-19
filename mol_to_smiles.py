@@ -32,14 +32,12 @@ def retrieve_mol2block(fileLikeObject, delimiter="@<TRIPOS>MOLECULE"):
 
     # directly after the line @<TRIPOS>MOLECULE contains the name of the molecule
 
-    #TODO: replace '-' with '_' and strip '\n' from the molname strings
-
     molname = None
     prevline = ""
     mol2 = []
     for line in fileLikeObject: # line will contain the molecule name followed by a newline character
         if line.startswith(delimiter) and mol2:
-            yield (molname, "".join(mol2))
+            yield (molname.strip("/n").replace('-','_'), "".join(mol2))
             molname = ""
             mol2 = []
         elif prevline.startswith(delimiter):
