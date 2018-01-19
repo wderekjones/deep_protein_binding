@@ -32,6 +32,7 @@ loss_fn = torch.nn.MSELoss()
 
 for epoch in range(num_epochs):
     epoch_losses = []
+    optimizer.zero_grad()
     for i_batch, sample_batched in enumerate(molecule_loader):
         # print("now loading batch {}".format(i_batch))
         pred = model(torch.autograd.Variable(sample_batched['atom'].float()),
