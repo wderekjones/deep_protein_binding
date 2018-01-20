@@ -17,7 +17,7 @@ args = parser.parse_args()
 if __name__ == "__main__":
 
     labels = read_labels("/media/derek/Data/thesis_data/drug_features_list.csv", "/media/derek/Data/thesis_data/null_column_list.csv")
-    molecules = MoleculeDataset(args.D, labels, num_workers=1)
+    molecules = MoleculeDataset(args.D, labels, nrows=5000, num_workers=1)
     molecules.read_csv_data()
     molecules.clean_csv_data()
     molecules.tensorize_smiles()
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     model = LinearNetwork(batch_size=batch_size, atom_0=batch_size, atom_1=atom_shape[0], atom_2=atom_shape[1],
                       bond_0=batch_size, bond_1=bond_shape[0], bond_2=bond_shape[1], bond_3=bond_shape[2],
                       edge_0=batch_size, edge_1=edge_shape[0], edge_2=edge_shape[1],
-                      hidden_00=10, hidden_01=10, hidden_02=10, hidden_10=batch_size*output_dim, num_outputs=output_dim)
+                      hidden_00=5, hidden_01=5, hidden_02=5, hidden_10=batch_size*output_dim, num_outputs=output_dim)
 
     model.cuda().half()
 
