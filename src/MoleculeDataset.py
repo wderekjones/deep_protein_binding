@@ -3,8 +3,10 @@
 
     url: https://github.com/keiserlab/keras-neural-graph-fingerprint
 '''
+import torch
 import pandas as pd
 import numpy as np
+import h5py
 from torch.utils.data import Dataset
 from preprocessing import tensorize_smiles, clean_data
 from multiprocessing import cpu_count
@@ -41,6 +43,44 @@ class MoleculeDataset(Dataset):
         return {"atom": self.data[0][item].astype('float'), "bond": self.data[1][item].astype('float'),
                 "edge": self.data[2][item].astype('float'), "target": self.labels[item].astype('float')}
 
+
+
+
+class MoleculeDatasetH5(Dataset):
+    def __init__(self, file, features, split, labels, num_workers):
+        super(MoleculeDatasetH5, self).__init__()
+        self.fo = h5py.File(file,"r")
+        self.num_workers = num_workers
+        '''
+            iterate over each of the keys in the split of the dataset, using a dictionary store each of these lengths 
+            separately, add all of these up to get the length of the full dataset. Use a helper function to do this?
+        '''
+        self.len_dict = {}
+        self.len = None
+        self.features = features
+        self.labels = labels
+        self.split = split
+
+    def get_kinase_from_index(self, item):
+        # iterate over the sizes associated with each kinase, if item > kinase size, then value must be in next kinase,
+        # if item < kinase_size and > cumsum(kinase_sizes), then subtract item from cumsum(kinase_sizes) and return the
+        # item at that result
+        return item
+
+    def __len__(self):
+        return self.len
+
+    def __getitem__(self, item):
+
+        '''
+            upon reciept of the item index, use helper function to find the kinase dataset that the index belongs to
+        :param item:
+        :return:
+        '''
+
+        data = np.ndarray()
+        for key in self.features:
+            np.concatenate((data,h5py[]))
 
 if __name__ == "__main__":
 

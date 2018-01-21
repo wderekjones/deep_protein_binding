@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 import argparse
 import numpy as np
 from multiprocessing import cpu_count
@@ -16,8 +17,9 @@ args = parser.parse_args()
 
 if __name__ == "__main__":
 
-    labels = read_labels("/media/derek/Data/thesis_data/drug_features_list.csv", "/media/derek/Data/thesis_data/null_column_list.csv")
-    molecules = MoleculeDataset(args.D, labels, nrows=5000, num_workers=1)
+    labels = read_labels("/u/vul-d1/scratch/wdjo224/data/Informative_features.csv", "/media/derek/Data/thesis_data/null_column_list.csv")
+    # labels = ["MW"]
+    molecules = MoleculeDataset(args.D, labels, nrows=20000, num_workers=1)
     molecules.read_csv_data()
     molecules.clean_csv_data()
     molecules.tensorize_smiles()
@@ -38,14 +40,13 @@ if __name__ == "__main__":
 
     model.cuda().half()
 
-    optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     loss_fn = torch.nn.SmoothL1Loss()
-    # loss_fn = MSELoss()
     print("training model")
     for epoch in range(num_epochs):
         epoch_losses = []
         optimizer.zero_grad()
-        for i_batch, sample_batched in enumerate(molecule_loader):
+        for i_batch, sample_batched in tqdm(enumerate(molecule_loader), total=batch_size, leave=True):
             pred = model(torch.autograd.Variable(sample_batched['atom'].type(torch.HalfTensor).cuda()),
             torch.autograd.Variable(sample_batched['bond'].type(torch.HalfTensor).cuda()),
             torch.autograd.Variable(sample_batched['edge'].type(torch.HalfTensor).cuda()))

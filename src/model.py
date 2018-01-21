@@ -58,4 +58,3 @@ class LinearNetwork(nn.Module):
         combined = combined.view(self.batch_size,self.num_outputs)
         # return self.combined_relu(self.output_fc(combined))
         return self.combined_relu(combined)
-
