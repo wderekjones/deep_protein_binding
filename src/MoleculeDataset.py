@@ -85,7 +85,7 @@ class MoleculeDatasetH5(Dataset):
             np.concatenate((target,self.fo[self.split+'/'+kinase+'/'+feature][kinase_key]))
 
         # then get the smiles string, process it and then return its feature vectors
-        return target
+        return tensorize_smiles(self.fo[self.split+'/'+kinase+'/smiles'][kinase_key]), target
 if __name__ == "__main__":
 
     print("{:=^100}".format(' Data preprocessing '))
