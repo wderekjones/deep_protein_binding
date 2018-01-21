@@ -78,10 +78,14 @@ class MoleculeDatasetH5(Dataset):
         :return:
         '''
 
-        data = np.ndarray()
-        for key in self.features:
-            np.concatenate((data,h5py[]))
+        kinase, kinase_key = self.get_kinase_from_index(item)
+        target = np.ndarray([])
 
+        for feature in self.features:
+            np.concatenate((target,self.fo[self.split+'/'+kinase+'/'+feature][kinase_key]))
+
+        # then get the smiles string, process it and then return its feature vectors
+        return target
 if __name__ == "__main__":
 
     print("{:=^100}".format(' Data preprocessing '))
