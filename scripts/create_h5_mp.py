@@ -5,67 +5,34 @@ by: Derek Jones
 '''
 
 
-
-def compute_drug_data(drug_data, drug_name, feature_names):
-
-    data_dict = {}
-    data_dict["drugID"] = drug_name
-    for feature in iter(feature_names):
-        data_dict[feature] = drug_data[feature].values[0]
-    return data_dict
-
-
-def write_drug_data(data_dict, kinase_name, output_file):
-    output_file[kinase_name].create_group(data_dict["drugID"])
-    for feature in data_dict.keys():
-        if feature in ["receptor", "drugID", "smiles"]:
-            output_file[kinase_name][data_dict["drugID"]].create_dataset(feature, [1],
-                                                                         dtype=h5py.special_dtype(vlen=str),
-                                                                         data=data_dict[feature])
-        else:
-            output_file[kinase_name][data_dict["drugID"]][feature] = data_dict[feature]
-
-
-def save_to_hdf5(kinase_name, kinase_data, output_name, feature_names, num_processes):
-    print("Creating {}-process pool".format(num_processes))
-    pool = mp.Pool(num_processes)
-
+def save_to_hdf5(kinase_name, output_name, feature_names):
     print("Creating output datset {}".format(output_name))
     output_file = h5py.File(output_name, "a", libver="latest")
     drug_names = kinase_data["drugID"].unique()
     output_file.create_group(kinase_name)
 
-    result = pool.starmap(compute_drug_data, [(kinase_data[kinase_data["drugID"] == drug_name],
-                                               drug_name, feature_names) for drug_name in drug_names])
 
-
-    for idx, data_dict in enumerate(result):
-        output_file[kinase_name].create_group(data_dict["drugID"])
-        for feature in data_dict.keys():
+    for idx, drug_name in enumerate(drug_names):
+        output_file[kinase_name].create_group(drug_name)
+        for feature in feature_names:
 
             if feature in ["receptor", "drugID", "smiles"]:
-                output_file[kinase_name][data_dict["drugID"]].create_dataset(feature, [1],
-                            dtype=h5py.special_dtype(vlen=str), data=data_dict[feature])
+                output_file[kinase_name][drug_name].create_dataset(feature, [1],
+                            dtype=h5py.special_dtype(vlen=str), data=kinase_data[kinase_data["drugID"] == drug_name][feature])
 
             else:
-                output_file[kinase_name][data_dict["drugID"]][feature] = data_dict[feature]
-
-    print("Shutting down process pool")
-    pool.close()
-    pool.join()
+                output_file[kinase_name][drug_name][feature] = kinase_data[kinase_data["drugID"] == drug_name][feature]
 
     print("closing HDF5 file...")
     output_file.close()
 
 
-
 if __name__ == "__main__":
+
     import time
-    import os
     import h5py
     import pandas as pd
     import numpy as np
-    import multiprocessing as mp
     import argparse
     import numpy as np
     from tqdm import tqdm
@@ -90,8 +57,8 @@ if __name__ == "__main__":
         print(name)
     for kinase_name in tqdm(kinase_names, total=len(kinase_names)):
         kinase_data = data_frame[data_frame['receptor'] == kinase_name]
-        save_to_hdf5(kinase_name=kinase_name, kinase_data=kinase_data, output_name=args.o+"_"+str(time.time())+".h5",
-                     feature_names=feature_names, num_processes=mp.cpu_count()-1)
+        save_to_hdf5(kinase_name=kinase_name, output_name=args.o+"_"+str(kinase_name)+"_"+str(time.time())+".h5",
+                     feature_names=feature_names)
     t1 = time.clock()
     print(args.i, " with kinases {} converted to .h5 in {} seconds.".format(kinase_names, (t1-t0)))
 
