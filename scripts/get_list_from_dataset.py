@@ -16,17 +16,18 @@ parser.add_argument("--list_dir", type=str, help="input path to dataset list dir
 
 args = parser.parse_args()
 
-# TODO: get a column of the target names, should just copy the target as many times as there are compounds
-# TODO: get a column of the compound (target-drug molecule) activity, this requires looping over all drugs and getting the labels
-
 if __name__ == "__main__":
 
+    print("reading datasets..")
     for dataset in tqdm(os.listdir(args.data_dir)):
-        drug_dict = {}
         fo = h5py.File(args.data_dir+"/"+dataset, "r")
         root_key = list(fo)[0]
         drug_list = list(fo[root_key].keys())
 
-        drug_dict[root_key] = drug_list
-        output_df = pd.DataFrame(drug_dict)
-        output_df.to_csv(args.list_dir+str(root_key)+".csv", index=False, header=None)
+        output_df = pd.DataFrame()
+        output_df["drugID"] = drug_list
+        output_df["active"] = output_df["drugID"].apply(lambda x: int("active" in x))
+        output_df["receptor"] = [root_key] * output_df.shape[0]
+
+        output_df.to_csv(args.list_dir+"/"+str(root_key)+".csv", index=False)
+    print("finished generated lists.")

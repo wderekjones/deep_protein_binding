@@ -5,6 +5,7 @@ import numpy as np
 from multiprocessing import cpu_count
 from MoleculeDataset import MoleculeDataset
 from torch.utils.data import DataLoader
+
 from model import LinearNetwork
 from label import read_labels
 from loss import MSELoss
@@ -14,6 +15,7 @@ parser.add_argument('-D', type=str, help="path to dataset")
 parser.add_argument('-L', type=str, help="path to labels to use")
 
 args = parser.parse_args()
+
 
 if __name__ == "__main__":
 
