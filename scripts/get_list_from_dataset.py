@@ -30,4 +30,5 @@ if __name__ == "__main__":
         output_df["receptor"] = [root_key] * output_df.shape[0]
 
         output_df.to_csv(args.list_dir+"/"+str(root_key)+".csv", index=False)
-    print("finished generated lists.")
+        fo.close()
+    print("finished generating lists.")
