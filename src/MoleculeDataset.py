@@ -91,7 +91,7 @@ class MoleculeDatasetH5(Dataset):
 	# investigate the efficiency of tensorize_smiles_job(), this may be a bottleneck
         data = tensorize_smiles_job(fo[receptor][drugID]["smiles"][()])
         fo.close()
-	    data = (0,1,2)
+        data = (0,1,2)
         assert data is not None and target_list is not None
         return {"atom": data[0].astype('float'), "bond": data[1].astype('float'),
                 "edge": data[2].astype('float'), "target": np.asarray(target_list).astype('float')}
