@@ -3,14 +3,15 @@
 
     url: https://github.com/keiserlab/keras-neural-graph-fingerprint
 '''
-import torch
+# import torch
+
 import os
 import h5py
 import pandas as pd
 import numpy as np
-import multiprocessing as mp
 from tqdm import tqdm
 from torch.utils.data import Dataset
+
 from sklearn.utils import shuffle
 from rdkit import Chem
 from preprocessing import tensorize_smiles, tensorize_smiles_job
@@ -54,21 +55,14 @@ class MoleculeDatasetH5(Dataset):
         self.fo_dict = {}
         self.compound_df = pd.DataFrame()
         self.corrupt_compound_df = pd.read_csv(corrupt_path)
-        # self.corrupt_compound_df["active"] = self.corrupt_compound_df.apply(lambda x: "active" in x, axis=1).astype(int)
-        # from the input file list, open each of the binary files (read mode) and store in a dictionary
-        for file in os.listdir(data_dir):
-            fo_path = data_dir+"/"+file
-            fo = h5py.File(fo_path,"r", libver="latest")
-            key = list(fo.keys())[0]
-            fo.close()
-            self.fo_dict[key] = fo_path
+        self.fo = h5py.File("/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_fo_no_duplicates.h5", "r",
+                            libver="earliest", swmr=True)
+
         for file in os.listdir(list_dir):
             self.compound_df = pd.concat([self.compound_df, pd.read_csv(list_dir+"/"+file)])
 
         #remove the precomputed corrupted inputs
-        self.compound_df.drop(pd.merge(self.compound_df,self.corrupt_compound_df), inplace=True)
-
-        # shuffle the entries of the dataframe so compounds with common target are not grouped together sequentially
+        self.compound_df[~self.compound_df["drugID"].isin(self.corrupt_compound_df.drugID)]        # shuffle the entries of the dataframe so compounds with common target are not grouped together sequentially
         self.compound_df = shuffle(self.compound_df)
 
     def __len__(self):
@@ -81,22 +75,29 @@ class MoleculeDatasetH5(Dataset):
         target_list = []
         receptor = compound_row["receptor"]
         drugID = compound_row["drugID"]
-        fo_path = self.fo_dict[receptor]
-        with h5py.File(fo_path, "r", libver="latest") as fo:
-            # build up the target vector
-            for target in self.targets:
-                target_list.append(fo[receptor][drugID][target][0])
 
-            # then get the smiles string, process it and then return its feature vectors
+        # build up the target vector
+        for target in self.targets:
+            target_list.append(self.fo[receptor][drugID][target][0])
+
+        # then get the smiles string, process it and then return its feature vectors
 	    # investigate the efficiency of tensorize_smiles_job(), this may be a bottleneck
-        #    data = tensorize_smiles_job(fo[receptor][drugID]["smiles"][()])
+        data = tensorize_smiles_job(self.fo[receptor][drugID]["smiles"][()])
         #    fo.close()
-        data = (np.asarray(0),np.asarray(1),np.asarray(2))
+        # data = (np.asarray(0), np.asarray(1), np.asarray(2))
         assert data is not None and target_list is not None
         return {"atom": data[0].astype('float'), "bond": data[1].astype('float'),
                 "edge": data[2].astype('float'), "target": np.asarray(target_list).astype('float')}
 
+
 if __name__ == "__main__":
+    import torch.multiprocessing as mp
+    mp = mp.get_context("forkserver")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--nworkers", type=int, help="number of workers to use in data loader", default=1)
+    parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)
+    args = parser.parse_args()
 
     print("{:=^100}".format(' Testing Dataloader '))
     data = MoleculeDatasetH5(data_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/datasets", list_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/dataset_compounds",
@@ -108,11 +109,11 @@ if __name__ == "__main__":
 
         return batch
 
-    batch_size = 50
-    num_workers=mp.cpu_count()-1
+    batch_size = args.batch_size
+    num_workers = args.nworkers
     num_iters = int(np.ceil(len(data)/batch_size))
     mydata = DataLoader(data, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn)
-    print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size,num_iters,num_workers))
-    for idx, batch in tqdm(enumerate(mydata),total=num_iters):
-	# just here to take up space
+    print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size, num_iters, num_workers))
+    for idx, batch in tqdm(enumerate(mydata), total=num_iters):
+        # just here to take up space
         x = batch
