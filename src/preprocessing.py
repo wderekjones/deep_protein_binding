@@ -273,12 +273,18 @@ def parallelize(data, func, workers):
 
 def clean_data_job(smiles_df):
     # take an array of smiles (and labels) and test each to see if it can be read by RDKit, if not throw them out
-    for row in smiles_df.itertuples():
-        mol = Chem.MolFromSmiles(row[2])
+    output_df = pd.DataFrame()
+    for (idx,row) in smiles_df.iterrows():
+        receptor = row.loc["receptor"]
+        drugID = row.loc["drugID"]
+        smiles = row.loc["smiles"]
+        activity = row.loc["label"]
+        mol = Chem.MolFromSmiles(smiles)
         if mol is None:
-            print("found a corrupt input:\n index: {} \t name: {} \t smiles: {}".format(row[0], row[1], row[2]))
-            smiles_df.drop(row[0], axis=0, inplace=True)
-    return smiles_df
+            print("found a corrupt input: receptor: {} \t name: {} \t smiles: {}".format(receptor, drugID, smiles))
+            output_df = pd.concat([output_df,pd.DataFrame(
+                {"receptor": [receptor], "drugID": [drugID],"active": [activity] , "smiles": [smiles]})])
+    return output_df
 
 
 def clean_data(smiles_df, workers=cpu_count()-1):
@@ -286,3 +292,24 @@ def clean_data(smiles_df, workers=cpu_count()-1):
 
     smiles_df = parallelize(smiles_df, func=clean_data_job, workers=workers)
     return smiles_df
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', type=str, help="path to input molecule csv file")
+    parser.add_argument('-o',type=str, help="path to output bad molecule csv file")
+    parser.add_argument('-nrows', type=int, help="number of rows to read from input, default is None", default=None)
+    parser.add_argument('-nworkers', type=int, help="number of workers to use to process the data", default=cpu_count()-1)
+    args = parser.parse_args()
+    # TODO: load input data, build list of bad molecules and write those to disk
+
+    print("{:=^100}".format(' Preprocessing '))
+    print("loading data...")
+    data = pd.read_csv(args.i, nrows=args.nrows)
+    print("data loaded. now cleaning data...")
+    corrupt_data = clean_data(data, workers=args.nworkers)
+    print("cleaning data complete. Found {} corrupt entries. Now writing corrupt entries to disk."
+          .format(corrupt_data.shape[0]))
+    corrupt_data.to_csv(args.o, index=False)

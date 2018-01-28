@@ -5,16 +5,15 @@
 '''
 import torch
 import os
+import h5py
 import pandas as pd
 import numpy as np
-import h5py
+import multiprocessing as mp
+from tqdm import tqdm
 from torch.utils.data import Dataset
 from sklearn.utils import shuffle
-from preprocessing import tensorize_smiles, tensorize_smiles_job, clean_data
-
-
-# these compounds don't have valid smiles representations, remove these after compound lists have been loaded
-bad_mol_list=["fak1_decoy_450","kpcb_decoy_539", "tgfr1_decoy_3817", "igf1r_decoy_3764", "igf1r_decoy_3763"]
+from rdkit import Chem
+from preprocessing import tensorize_smiles, tensorize_smiles_job
 
 
 # class MoleculeDataset(Dataset):
@@ -47,13 +46,15 @@ bad_mol_list=["fak1_decoy_450","kpcb_decoy_539", "tgfr1_decoy_3817", "igf1r_deco
 
 
 class MoleculeDatasetH5(Dataset):
-    def __init__(self, data_dir, list_dir, targets, num_workers):
+    def __init__(self, data_dir, list_dir, corrupt_path, targets, num_workers):
         super(MoleculeDatasetH5, self).__init__()
         self.num_workers = num_workers
         # TODO: make sure targets is iterable
         self.targets = targets
         self.fo_dict = {}
         self.compound_df = pd.DataFrame()
+        self.corrupt_compound_df = pd.read_csv(corrupt_path)
+        # self.corrupt_compound_df["active"] = self.corrupt_compound_df.apply(lambda x: "active" in x, axis=1).astype(int)
         # from the input file list, open each of the binary files (read mode) and store in a dictionary
         for file in os.listdir(data_dir):
             fo_path = data_dir+"/"+file
@@ -64,9 +65,8 @@ class MoleculeDatasetH5(Dataset):
         for file in os.listdir(list_dir):
             self.compound_df = pd.concat([self.compound_df, pd.read_csv(list_dir+"/"+file)])
 
-        # remove the bad mol files
-        for bad_mol in bad_mol_list:
-            self.compound_df.drop(self.compound_df[self.compound_df["drugID"] == bad_mol].index, inplace=True)
+        #remove the precomputed corrupted inputs
+        self.compound_df.drop(pd.merge(self.compound_df,self.corrupt_compound_df), inplace=True)
 
         # shuffle the entries of the dataframe so compounds with common target are not grouped together sequentially
         self.compound_df = shuffle(self.compound_df)
@@ -97,16 +97,16 @@ class MoleculeDatasetH5(Dataset):
 if __name__ == "__main__":
 
     print("{:=^100}".format(' Testing Dataloader '))
-    data = MoleculeDatasetH5("/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/datasets", "/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/dataset_compounds", ["label"],1)
+    data = MoleculeDatasetH5(data_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/datasets", list_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/dataset_compounds",
+                             corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv",targets=["label"],num_workers=1)
     print("size of dataset: {}".format(len(data)))
     from torch.utils.data import DataLoader
-
 
     def collate_fn(batch):
 
         return batch
 
-    mydata = DataLoader(data, batch_size=50, num_workers=6, collate_fn=collate_fn)
+    mydata = DataLoader(data, batch_size=50, num_workers=5, collate_fn=collate_fn)
 
     for idx, batch in enumerate(mydata):
         print("now loading batch {}".format(idx))
