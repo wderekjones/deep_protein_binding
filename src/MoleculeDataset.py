@@ -62,7 +62,7 @@ class MoleculeDatasetH5(Dataset):
             self.compound_df = pd.concat([self.compound_df, pd.read_csv(list_dir+"/"+file)])
 
         #remove the precomputed corrupted inputs
-        self.compound_df[~self.compound_df["drugID"].isin(self.corrupt_compound_df.drugID)]        # shuffle the entries of the dataframe so compounds with common target are not grouped together sequentially
+        self.compound_df = self.compound_df[~self.compound_df["drugID"].isin(self.corrupt_compound_df.drugID)]        # shuffle the entries of the dataframe so compounds with common target are not grouped together sequentially
         self.compound_df = shuffle(self.compound_df)
 
     def __len__(self):
