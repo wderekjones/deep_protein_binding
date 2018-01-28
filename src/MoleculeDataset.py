@@ -82,16 +82,16 @@ class MoleculeDatasetH5(Dataset):
         receptor = compound_row["receptor"]
         drugID = compound_row["drugID"]
         fo_path = self.fo_dict[receptor]
-        fo = h5py.File(fo_path, "r", libver="latest")
+        # fo = h5py.File(fo_path, "r", libver="latest")
         # build up the target vector
-        for target in self.targets:
-            target_list.append(fo[receptor][drugID][target][0])
+        # for target in self.targets:
+        #     target_list.append(fo[receptor][drugID][target][0])
 
         # then get the smiles string, process it and then return its feature vectors
 	# investigate the efficiency of tensorize_smiles_job(), this may be a bottleneck
-        data = tensorize_smiles_job(fo[receptor][drugID]["smiles"][()])
-        fo.close()
-        data = (0,1,2)
+     #    data = tensorize_smiles_job(fo[receptor][drugID]["smiles"][()])
+     #    fo.close()
+        data = (np.asarray(0),np.asarray(1),np.asarray(2))
         assert data is not None and target_list is not None
         return {"atom": data[0].astype('float'), "bond": data[1].astype('float'),
                 "edge": data[2].astype('float'), "target": np.asarray(target_list).astype('float')}
@@ -110,8 +110,9 @@ if __name__ == "__main__":
 
     batch_size = 50
     num_workers=mp.cpu_count()-1
-    mydata = DataLoader(data, batch_size=5, num_workers=num_workers, collate_fn=collate_fn)
-    print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size,int(np.ceil(len(data)/batch_size)),num_workers))
-    for idx, batch in tqdm(enumerate(mydata),total=len(data)):
+    num_iters = int(np.ceil(len(data)/batch_size))
+    mydata = DataLoader(data, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn)
+    print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size,num_iters,num_workers))
+    for idx, batch in tqdm(enumerate(mydata),total=num_iters):
 	# just here to take up space
         x = batch
