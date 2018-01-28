@@ -82,15 +82,15 @@ class MoleculeDatasetH5(Dataset):
         receptor = compound_row["receptor"]
         drugID = compound_row["drugID"]
         fo_path = self.fo_dict[receptor]
-        # fo = h5py.File(fo_path, "r", libver="latest")
-        # build up the target vector
-        # for target in self.targets:
-        #     target_list.append(fo[receptor][drugID][target][0])
+        with h5py.File(fo_path, "r", libver="latest") as fo:
+            # build up the target vector
+            for target in self.targets:
+                target_list.append(fo[receptor][drugID][target][0])
 
-        # then get the smiles string, process it and then return its feature vectors
-	# investigate the efficiency of tensorize_smiles_job(), this may be a bottleneck
-     #    data = tensorize_smiles_job(fo[receptor][drugID]["smiles"][()])
-     #    fo.close()
+            # then get the smiles string, process it and then return its feature vectors
+	    # investigate the efficiency of tensorize_smiles_job(), this may be a bottleneck
+        #    data = tensorize_smiles_job(fo[receptor][drugID]["smiles"][()])
+        #    fo.close()
         data = (np.asarray(0),np.asarray(1),np.asarray(2))
         assert data is not None and target_list is not None
         return {"atom": data[0].astype('float'), "bond": data[1].astype('float'),
