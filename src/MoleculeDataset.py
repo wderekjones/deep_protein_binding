@@ -88,8 +88,10 @@ class MoleculeDatasetH5(Dataset):
             target_list.append(fo[receptor][drugID][target][0])
 
         # then get the smiles string, process it and then return its feature vectors
+	# investigate the efficiency of tensorize_smiles_job(), this may be a bottleneck
         data = tensorize_smiles_job(fo[receptor][drugID]["smiles"][()])
         fo.close()
+	    data = (0,1,2)
         assert data is not None and target_list is not None
         return {"atom": data[0].astype('float'), "bond": data[1].astype('float'),
                 "edge": data[2].astype('float'), "target": np.asarray(target_list).astype('float')}
@@ -106,7 +108,10 @@ if __name__ == "__main__":
 
         return batch
 
-    mydata = DataLoader(data, batch_size=50, num_workers=5, collate_fn=collate_fn)
-
-    for idx, batch in enumerate(mydata):
-        print("now loading batch {}".format(idx))
+    batch_size = 50
+    num_workers=mp.cpu_count()-1
+    mydata = DataLoader(data, batch_size=5, num_workers=num_workers, collate_fn=collate_fn)
+    print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size,int(np.ceil(len(data)/batch_size)),num_workers))
+    for idx, batch in tqdm(enumerate(mydata),total=len(data)):
+	# just here to take up space
+        x = batch
