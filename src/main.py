@@ -3,57 +3,71 @@ from tqdm import tqdm
 import argparse
 import numpy as np
 from multiprocessing import cpu_count
-from MoleculeDataset import MoleculeDataset
+from MoleculeDataset import MoleculeDatasetH5
 from torch.utils.data import DataLoader
 
-from model import LinearNetwork
+from model import MPNN
 from label import read_labels
 from loss import MSELoss
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-D', type=str, help="path to dataset")
 parser.add_argument('-L', type=str, help="path to labels to use")
+parser.add_argument("--nworkers", type=int, help="number of workers to use in data loader", default=1)
+parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)
 
 args = parser.parse_args()
 
 
 if __name__ == "__main__":
 
-    labels = read_labels("/u/vul-d1/scratch/wdjo224/data/Informative_features.csv", "/media/derek/Data/thesis_data/null_column_list.csv")
-    # labels = ["MW"]
-    molecules = MoleculeDataset(args.D, labels, nrows=20000, num_workers=1)
-    molecules.read_csv_data()
-    molecules.clean_csv_data()
-    molecules.tensorize_smiles()
-    batch_size = 5
-    num_epochs = 50
+    # labels = read_labels("/u/vul-d1/scratch/wdjo224/data/Informative_features.csv", "/media/derek/Data/thesis_data/null_column_list.csv")
 
-    molecule_loader = DataLoader(molecules, batch_size=batch_size, shuffle=True, num_workers=cpu_count()-2) # look at source to understand impact of num_workers
 
-    print("Building the network.")
-    atom_shape = molecules[0]['atom'].shape
-    bond_shape = molecules[0]['bond'].shape
-    edge_shape = molecules[0]['edge'].shape
-    output_dim = len(labels)
-    model = LinearNetwork(batch_size=batch_size, atom_0=batch_size, atom_1=atom_shape[0], atom_2=atom_shape[1],
-                      bond_0=batch_size, bond_1=bond_shape[0], bond_2=bond_shape[1], bond_3=bond_shape[2],
-                      edge_0=batch_size, edge_1=edge_shape[0], edge_2=edge_shape[1],
-                      hidden_00=5, hidden_01=5, hidden_02=5, hidden_10=batch_size*output_dim, num_outputs=output_dim)
+    model = MPNN(3)
 
-    model.cuda().half()
+    # model.cuda().half()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     loss_fn = torch.nn.SmoothL1Loss()
     print("training model")
-    for epoch in range(num_epochs):
-        epoch_losses = []
-        optimizer.zero_grad()
-        for i_batch, sample_batched in tqdm(enumerate(molecule_loader), total=batch_size, leave=True):
-            pred = model(torch.autograd.Variable(sample_batched['atom'].type(torch.HalfTensor).cuda()),
-            torch.autograd.Variable(sample_batched['bond'].type(torch.HalfTensor).cuda()),
-            torch.autograd.Variable(sample_batched['edge'].type(torch.HalfTensor).cuda()))
-            loss = loss_fn(pred.float(), torch.autograd.Variable(sample_batched['target'].cuda().float()))
+
+    data = MoleculeDatasetH5(data_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/datasets",
+                             list_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/dataset_compounds",
+                             corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv",
+                             targets=["label"], num_workers=1)
+    print("size of dataset: {}".format(len(data)))
+    from torch.utils.data import DataLoader
+
+
+    def collate_fn(batch):
+
+        return batch
+
+    epochs = 2
+    batch_size = args.batch_size
+    num_workers = args.nworkers
+    num_iters = int(np.ceil(len(data) / batch_size))
+    mydata = DataLoader(data, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn)
+    print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size, num_iters, num_workers))
+    for epoch in range(0,epochs):
+        for idx, batch in tqdm(enumerate(mydata), total=num_iters):
+            # just here to take up space
+            y_pred = model(batch[0]['h'], batch[0]['g'])
+            y_true = batch[0]["target"]
+            loss = loss_fn(y_pred, y_true)
+            print("loss: {}".format(loss.data.numpy()))
             loss.backward()
-            epoch_losses.append(loss.data.cpu().numpy()) # is this a bottleneck?
         optimizer.step()
-        print("epoch: {} \t loss: {} ".format(epoch, np.mean(epoch_losses)))
+    # for epoch in range(num_epochs):
+    #     epoch_losses = []
+    #     optimizer.zero_grad()
+    #     for i_batch, sample_batched in tqdm(enumerate(molecule_loader), total=batch_size, leave=True):
+    #         pred = model(torch.autograd.Variable(sample_batched['atom'].type(torch.HalfTensor).cuda()),
+    #         torch.autograd.Variable(sample_batched['bond'].type(torch.HalfTensor).cuda()),
+    #         torch.autograd.Variable(sample_batched['edge'].type(torch.HalfTensor).cuda()))
+    #         loss = loss_fn(pred.float(), torch.autograd.Variable(sample_batched['target'].cuda().float()))
+    #         loss.backward()
+    #         epoch_losses.append(loss.data.cpu().numpy()) # is this a bottleneck?
+    #     optimizer.step()
+    #     print("epoch: {} \t loss: {} ".format(epoch, np.mean(epoch_losses)))

@@ -7,11 +7,14 @@
 
 import os
 import h5py
+import torch
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
-
+from torch.autograd import Variable
+from collections import OrderedDict
+import deepchem as dc
 from sklearn.utils import shuffle
 from rdkit import Chem
 from preprocessing import tensorize_smiles, tensorize_smiles_job
@@ -65,6 +68,29 @@ class MoleculeDatasetH5(Dataset):
         self.compound_df = self.compound_df[~self.compound_df["drugID"].isin(self.corrupt_compound_df.drugID)]        # shuffle the entries of the dataframe so compounds with common target are not grouped together sequentially
         self.compound_df = shuffle(self.compound_df)
 
+
+    def construct_multigraph(self, smile):
+        g = OrderedDict({})
+        h = OrderedDict({})
+
+        molecule = Chem.MolFromSmiles(smile)
+        for i in range(0, molecule.GetNumAtoms()):
+            atom_i = molecule.GetAtomWithIdx(i)
+            h[i] = Variable(torch.from_numpy(dc.feat.graph_features.atom_features(atom_i)).view(1, 75)).float()
+            for j in range(0, molecule.GetNumAtoms()):
+                e_ij = molecule.GetBondBetweenAtoms(i, j)
+                if e_ij != None:
+                    e_ij = map(lambda x: 1 if x == True else 0,
+                                dc.feat.graph_features.bond_features(e_ij))  # ADDED edge feat
+                    e_ij = Variable(torch.from_numpy(np.fromiter(e_ij, dtype=float))).view(1, 6).float()
+                    atom_j = molecule.GetAtomWithIdx(j)
+                    if i not in g:
+                        g[i] = []
+                        g[i].append((e_ij, j))
+
+        return g, h
+
+
     def __len__(self):
         return self.compound_df.shape[0]
 
@@ -82,12 +108,13 @@ class MoleculeDatasetH5(Dataset):
 
         # then get the smiles string, process it and then return its feature vectors
 	    # investigate the efficiency of tensorize_smiles_job(), this may be a bottleneck
-        data = tensorize_smiles_job(self.fo[receptor][drugID]["smiles"][()])
+        # data = tensorize_smiles_job(self.fo[receptor][drugID]["smiles"][()])
         #    fo.close()
         # data = (np.asarray(0), np.asarray(1), np.asarray(2))
+        data = self.construct_multigraph(self.fo[receptor][drugID]["smiles"][()][0])
         assert data is not None and target_list is not None
-        return {"atom": data[0].astype('float'), "bond": data[1].astype('float'),
-                "edge": data[2].astype('float'), "target": np.asarray(target_list).astype('float')}
+        return {"h": data[0], "g": data[1],
+                 "target": np.asarray(target_list).astype('float')}
 
 
 if __name__ == "__main__":

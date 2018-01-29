@@ -1,5 +1,54 @@
 import torch
+import torch.functional as F
+import numpy as np
+import deepchem as dc
 from torch import nn
+from torch.autograd import Variable
+from collections import OrderedDict
+from rdkit import Chem
+
+
+class MPNN(nn.Module):
+
+    def __init__(self, T):
+        super(MPNN, self).__init__()
+        self.T = T
+        self.R = nn.Linear(150, 128)
+        self.U = {0: nn.Linear(156, 75), 1: nn.Linear(156, 75), 2: nn.Linear(156, 75)}
+        self.V = {0: nn.Linear(75, 75), 1: nn.Linear(75, 75), 2: nn.Linear(75, 75)}
+        self.E = nn.Linear(6, 6)
+        self.output = nn.Linear(128,1)
+
+    def readout(self, h, h2):
+        catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], 1), zip(h2.keys(), h.keys()))
+        activated_reads = map(lambda x: nn.ReLU()(self.R(x)), catted_reads)
+        readout = Variable(torch.zeros(1, 128))
+        for read in activated_reads:
+            readout = readout + read
+        return F.tanh(readout)
+
+    def message_pass(self,h,g,k):
+        for v in g.keys():
+            neighbors = g[v]
+            for neighbor in neighbors:
+                e_vw = neighbor[0]  # feature variable
+                w = neighbor[1]
+
+                m_w = self.V[k](h[w])
+                m_e_vw = self.E(e_vw)
+                reshaped = torch.cat((h[v], m_w, m_e_vw), 1)
+                h[v] = nn.ReLU()(self.U[k](reshaped))
+
+
+    def forward(self, h, g):
+        h2 = h
+        g2 = g
+
+        for k in range(0, self.T):
+            self.message_pass(g,h,k)
+        x = self.readout(h, h2)
+        return self.output(x)
+
 
 
 class LinearNetwork(nn.Module):
@@ -58,5 +107,7 @@ class LinearNetwork(nn.Module):
         combined = combined.view(self.batch_size,self.num_outputs)
         # return self.combined_relu(self.output_fc(combined))
         return self.combined_relu(combined)
+
+
 
 
