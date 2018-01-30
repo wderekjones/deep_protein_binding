@@ -4,6 +4,8 @@ import numpy as np
 import deepchem as dc
 from torch import nn
 from torch.autograd import Variable
+import collections
+from itertools import chain
 from collections import OrderedDict
 from rdkit import Chem
 
@@ -20,14 +22,14 @@ class MPNN(nn.Module):
         self.output = nn.Linear(128,1)
 
     def readout(self, h, h2):
-        catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], 1), zip(h2.keys(), h.keys()))
+        catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
         activated_reads = map(lambda x: nn.ReLU()(self.R(x)), catted_reads)
         readout = Variable(torch.zeros(1, 128))
         for read in activated_reads:
             readout = readout + read
-        return F.tanh(readout)
+        return nn.Tanh()(readout)
 
-    def message_pass(self,h,g,k):
+    def message_pass(self,g,h,k):
         for v in g.keys():
             neighbors = g[v]
             for neighbor in neighbors:
@@ -39,16 +41,14 @@ class MPNN(nn.Module):
                 reshaped = torch.cat((h[v], m_w, m_e_vw), 1)
                 h[v] = nn.ReLU()(self.U[k](reshaped))
 
-
     def forward(self, h, g):
         h2 = h
         g2 = g
 
         for k in range(0, self.T):
-            self.message_pass(g,h,k)
-        x = self.readout(h, h2)
+            self.message_pass(h=h, g=g, k=k)
+        x = self.readout(h=h, h2=h2)
         return self.output(x)
-
 
 
 class LinearNetwork(nn.Module):

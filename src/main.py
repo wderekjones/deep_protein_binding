@@ -27,6 +27,7 @@ if __name__ == "__main__":
     model = MPNN(3)
 
     # model.cuda().half()
+    model.cuda()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     loss_fn = torch.nn.SmoothL1Loss()
@@ -53,9 +54,10 @@ if __name__ == "__main__":
     for epoch in range(0,epochs):
         for idx, batch in tqdm(enumerate(mydata), total=num_iters):
             # just here to take up space
-            y_pred = model(batch[0]['h'], batch[0]['g'])
+            data = batch[0]
+            y_pred = model(h=data["h"], g=data["g"])
             y_true = batch[0]["target"]
-            loss = loss_fn(y_pred, y_true)
+            loss = loss_fn(y_pred, torch.autograd.Variable(torch.FloatTensor(y_true)))
             print("loss: {}".format(loss.data.numpy()))
             loss.backward()
         optimizer.step()

@@ -90,7 +90,6 @@ class MoleculeDatasetH5(Dataset):
 
         return g, h
 
-
     def __len__(self):
         return self.compound_df.shape[0]
 
@@ -113,7 +112,7 @@ class MoleculeDatasetH5(Dataset):
         # data = (np.asarray(0), np.asarray(1), np.asarray(2))
         data = self.construct_multigraph(self.fo[receptor][drugID]["smiles"][()][0])
         assert data is not None and target_list is not None
-        return {"h": data[0], "g": data[1],
+        return {"g": data[0], "h": data[1],
                  "target": np.asarray(target_list).astype('float')}
 
 
