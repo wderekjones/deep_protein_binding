@@ -52,7 +52,6 @@ class MoleculeDataset(Dataset):
         return g, h
 
 
-
 class MoleculeDatasetCSV(MoleculeDataset):
 
     def __init__(self, csv_file, targets, corrupt_path, cuda=False):
@@ -122,30 +121,30 @@ class MoleculeDatasetH5(MoleculeDataset):
                  "target": np.asarray(target_list).astype('float')}
 
 
-# if __name__ == "__main__":
-#     import torch.multiprocessing as mp
-#     mp = mp.get_context("forkserver")
-#     import argparse
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--nworkers", type=int, help="number of workers to use in data loader", default=1)
-#     parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)
-#     args = parser.parse_args()
-#
-#     print("{:=^100}".format(' Testing Dataloader '))
-#     data = MoleculeDatasetH5(data_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/datasets", list_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/dataset_compounds",
-#                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv",targets=["label"],num_workers=1)
-#     print("size of dataset: {}".format(len(data)))
-#     from torch.utils.data import DataLoader
-#
-#     def collate_fn(batch):
-#
-#         return batch
-#
-#     batch_size = args.batch_size
-#     num_workers = args.nworkers
-#     num_iters = int(np.ceil(len(data)/batch_size))
-#     mydata = DataLoader(data, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn)
-#     print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size, num_iters, num_workers))
-#     for idx, batch in tqdm(enumerate(mydata), total=num_iters):
-#         just here to take up space
-        # x = batch
+if __name__ == "__main__":
+    import torch.multiprocessing as mp
+    mp = mp.get_context("forkserver")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--nworkers", type=int, help="number of workers to use in data loader", default=1)
+    parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)
+    args = parser.parse_args()
+
+    print("{:=^100}".format(' Testing Dataloader '))
+    data = MoleculeDatasetH5(data_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/datasets", list_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/dataset_compounds",
+                             corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv",targets=["label"],num_workers=1)
+    print("size of dataset: {}".format(len(data)))
+    from torch.utils.data import DataLoader
+
+    def collate_fn(batch):
+
+        return batch
+
+    batch_size = args.batch_size
+    num_workers = args.nworkers
+    num_iters = int(np.ceil(len(data)/batch_size))
+    mydata = DataLoader(data, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn)
+    print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size, num_iters, num_workers))
+    for idx, batch in tqdm(enumerate(mydata), total=num_iters):
+        # just here to take up space
+        x = batch

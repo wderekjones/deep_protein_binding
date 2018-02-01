@@ -10,6 +10,7 @@ from collections import OrderedDict
 from rdkit import Chem
 from torch.nn import Parameter
 
+
 class MPNN(nn.Module):
 
     def __init__(self, T, cuda=False):
@@ -19,7 +20,6 @@ class MPNN(nn.Module):
         self.U = nn.ModuleList([nn.Linear(156, 75), nn.Linear(156, 75), nn.Linear(156, 75)])
         self.V = nn.ModuleList([nn.Linear(75, 75), nn.Linear(75, 75), nn.Linear(75, 75)])
         self.E = nn.Linear(6, 6)
-
         self.output = nn.Linear(128, 1)
 
     def readout(self, h, h2):
@@ -27,11 +27,11 @@ class MPNN(nn.Module):
         activated_reads = map(lambda x: nn.ReLU()(self.R(x)), catted_reads)
 
         # find a better way to know when to use cuda, but this makes life easy for now
-        readout = Variable(torch.zeros(1, 128), requires_grad=False).cuda()
-        read_list = [] # this may work with applying cat to the iterable
+        # readout = Variable(torch.zeros(1, 128), requires_grad=False).cuda()
+        readout = Variable(torch.zeros(1, 128), requires_grad=False)
         for read in activated_reads:
             readout = readout + read
-        # return nn.Tanh()(readout)
+
         return self.output(readout)
 
     def message_pass(self,g,h,k):
