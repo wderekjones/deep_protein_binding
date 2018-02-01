@@ -8,26 +8,31 @@ import collections
 from itertools import chain
 from collections import OrderedDict
 from rdkit import Chem
-
+from torch.nn import Parameter
 
 class MPNN(nn.Module):
 
-    def __init__(self, T):
+    def __init__(self, T, cuda=False):
         super(MPNN, self).__init__()
         self.T = T
         self.R = nn.Linear(150, 128)
-        self.U = {0: nn.Linear(156, 75), 1: nn.Linear(156, 75), 2: nn.Linear(156, 75)}
-        self.V = {0: nn.Linear(75, 75), 1: nn.Linear(75, 75), 2: nn.Linear(75, 75)}
+        self.U = nn.ModuleList([nn.Linear(156, 75), nn.Linear(156, 75), nn.Linear(156, 75)])
+        self.V = nn.ModuleList([nn.Linear(75, 75), nn.Linear(75, 75), nn.Linear(75, 75)])
         self.E = nn.Linear(6, 6)
-        self.output = nn.Linear(128,1)
+
+        self.output = nn.Linear(128, 1)
 
     def readout(self, h, h2):
         catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
         activated_reads = map(lambda x: nn.ReLU()(self.R(x)), catted_reads)
-        readout = Variable(torch.zeros(1, 128))
+
+        # find a better way to know when to use cuda, but this makes life easy for now
+        readout = Variable(torch.zeros(1, 128), requires_grad=False).cuda()
+        read_list = [] # this may work with applying cat to the iterable
         for read in activated_reads:
             readout = readout + read
-        return nn.Tanh()(readout)
+        # return nn.Tanh()(readout)
+        return self.output(readout)
 
     def message_pass(self,g,h,k):
         for v in g.keys():
@@ -48,7 +53,7 @@ class MPNN(nn.Module):
         for k in range(0, self.T):
             self.message_pass(h=h, g=g, k=k)
         x = self.readout(h=h, h2=h2)
-        return self.output(x)
+        return x
 
 
 class LinearNetwork(nn.Module):
