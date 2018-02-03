@@ -11,6 +11,9 @@ from rdkit import Chem
 from torch.nn import Parameter
 
 
+#TODO: apply intitialization methods for the mpnn network
+#TODO: try another network, maybe one that operates on morgan fingerprints? ECFP?
+
 class MPNN(nn.Module):
 
     def __init__(self, T, cuda=False):
@@ -24,24 +27,18 @@ class MPNN(nn.Module):
 
     def readout(self, h, h2):
         catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
-        activated_reads = map(lambda x: nn.ReLU()(self.R(x)), catted_reads)
-
-        # find a better way to know when to use cuda, but this makes life easy for now
-        # readout = Variable(torch.zeros(1, 128), requires_grad=False).cuda()
-        readout = Variable(torch.zeros(1, 128), requires_grad=False)
-        for read in activated_reads:
-            readout = readout + read
-
-        return self.output(readout)
+        return self.output(torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0))
 
     def message_pass(self,g,h,k):
+        # for each node v in the graph G
         for v in g.keys():
             neighbors = g[v]
+            # for each neighbor of v
             for neighbor in neighbors:
-                e_vw = neighbor[0]  # feature variable
-                w = neighbor[1]
+                e_vw = neighbor[0]  # get the edge feature variable
+                w = neighbor[1]  # get the bond? feature variable?
 
-                m_w = self.V[k](h[w])
+                m_w = self.V[k](h[w])  # compute the message vector
                 m_e_vw = self.E(e_vw)
                 reshaped = torch.cat((h[v], m_w, m_e_vw), 1)
                 h[v] = nn.ReLU()(self.U[k](reshaped))

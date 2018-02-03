@@ -25,9 +25,11 @@ class MoleculeDataset(Dataset):
         self._cuda = cuda
 
     def construct_multigraph(self, smile):
-        g = OrderedDict({})
-        h = OrderedDict({})
-
+        # pretty sure that OrderedDict offers no advantage, only increased access complexity, as opposed to dict in python 3.6
+        # g = OrderedDict({})
+        # h = OrderedDict({})
+        g = {}
+        h = {}
         molecule = Chem.MolFromSmiles(smile)
         for i in range(0, molecule.GetNumAtoms()):
             atom_i = molecule.GetAtomWithIdx(i)
