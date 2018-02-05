@@ -53,6 +53,12 @@ class MoleculeDataset(Dataset):
 
         return g, h
 
+    def __len__(self):
+        raise Exception("Not implemented for abstract class")
+
+    def __getitem__(self, item):
+        raise Exception("Not implemented for abstract class")
+
 
 class MoleculeDatasetCSV(MoleculeDataset):
 
@@ -61,13 +67,12 @@ class MoleculeDatasetCSV(MoleculeDataset):
         self.csv_file = csv_file
         self._cuda = cuda
         self.targets = targets
-        cols = ["receptor", "drugID", "smiles"] + targets
+        cols = ["receptor", "drugID", "smiles", "label"] + targets
         self.data = pd.read_csv(csv_file, usecols=cols)
         self.corrupt_compound_df = pd.read_csv(corrupt_path)
         self.data = self.data[~self.data.drugID.isin(self.corrupt_compound_df.drugID)]
         self.data = shuffle(self.data)
-
-
+        self.activities = self.data["label"]
 
     def __len__(self):
         return self.data.shape[0]
@@ -99,6 +104,8 @@ class MoleculeDatasetH5(MoleculeDataset):
         #remove the precomputed corrupted inputs
         self.compound_df = self.compound_df[~self.compound_df["drugID"].isin(self.corrupt_compound_df.drugID)]        # shuffle the entries of the dataframe so compounds with common target are not grouped together sequentially
         self.compound_df = shuffle(self.compound_df)
+
+        self.activities = self.compound_df["label"]
 
     def __len__(self):
         return self.compound_df.shape[0]

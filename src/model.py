@@ -1,33 +1,27 @@
 import torch
-import torch.functional as F
-import numpy as np
-import deepchem as dc
 from torch import nn
-from torch.autograd import Variable
-import collections
-from itertools import chain
-from collections import OrderedDict
-from rdkit import Chem
-from torch.nn import Parameter
+
 
 
 #TODO: apply intitialization methods for the mpnn network
 #TODO: try another network, maybe one that operates on morgan fingerprints? ECFP?
+#TODO: add batch normalization and dropout to output of activated readout
 
 class MPNN(nn.Module):
 
-    def __init__(self, T, cuda=False):
+    def __init__(self, T, p=0.5, cuda=False):
         super(MPNN, self).__init__()
         self.T = T
         self.R = nn.Linear(150, 128)
         self.U = nn.ModuleList([nn.Linear(156, 75), nn.Linear(156, 75), nn.Linear(156, 75)])
         self.V = nn.ModuleList([nn.Linear(75, 75), nn.Linear(75, 75), nn.Linear(75, 75)])
         self.E = nn.Linear(6, 6)
-        self.output = nn.Linear(128, 1)
+        self.dropout = nn.Dropout(p=p)
+        self.output = nn.Linear(128, 1) # turn this into ModuleList
 
     def readout(self, h, h2):
         catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
-        return self.output(torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0))
+        return self.output(self.dropout(torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0)))
 
     def message_pass(self,g,h,k):
         # for each node v in the graph G
