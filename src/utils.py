@@ -13,7 +13,6 @@ def train_step(model, batch, loss_fn, use_cuda=False):
     preds = []
     targets = []
     losses = []
-    r2s = []
 
     #make sure model is in train mode
     model.train()
@@ -29,14 +28,14 @@ def train_step(model, batch, loss_fn, use_cuda=False):
         # Compute loss.
         loss = loss_fn(y_pred, y_true)
         loss.backward()
-        losses.append(loss.data.cpu().numpy())
-        targets.append(y_true.data.cpu().numpy())
-        preds.append(y_pred.data.cpu().numpy())
-        r2s.append(r2_score(y_true=y_true.data.cpu().numpy(), y_pred=y_pred.data.cpu().numpy()))
+        losses.append(loss.data.cpu().numpy().ravel())
+        targets.append(y_true.data.cpu().numpy().ravel())
+        preds.append(y_pred.data.cpu().numpy().ravel())
+    r2 = r2_score(y_true=np.ravel(targets), y_pred=np.ravel(preds))
 
     stop_train_clock = time.clock()
 
-    return {"loss": np.mean(losses), "r2": np.mean(r2s), "time": (stop_train_clock - start_train_clock)}
+    return {"loss": np.mean(losses), "r2": np.mean(r2), "time": (stop_train_clock - start_train_clock)}
 
 
 def validation_step(model, dataloader, loss_fn, use_cuda=False):
@@ -58,10 +57,10 @@ def validation_step(model, dataloader, loss_fn, use_cuda=False):
             if use_cuda: #TODO: add logic for cpu mode
                 y_true = y_true.cuda()
             # Compute loss.
-            losses.append(loss_fn(y_pred, y_true).data.cpu().numpy())
-            targets.append(y_true.data.cpu().numpy())
-            preds.append(y_pred.data.cpu().numpy())
-            r2s.append(r2_score(y_true=y_true.data.cpu().numpy(), y_pred=y_pred.data.cpu().numpy()))
+            losses.append(loss_fn(y_pred, y_true).data.cpu().numpy().ravel())
+            targets.append(y_true.data.cpu().numpy().ravel())
+            preds.append(y_pred.data.cpu().numpy().ravel())
+        r2s.append(r2_score(y_true=np.ravel(targets), y_pred=np.ravel(preds)))
 
     stop_clock = time.clock()
 
