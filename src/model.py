@@ -1,30 +1,36 @@
 import torch
 from torch import nn
 
-
-
 #TODO: apply intitialization methods for the mpnn network
 #TODO: try another network, maybe one that operates on morgan fingerprints? ECFP?
 #TODO: add batch normalization and dropout to output of activated readout
 
+
 class MPNN(nn.Module):
 
-    def __init__(self, T, p=0.5, cuda=False):
+    def __init__(self, T, p=0.5, n_tasks=1, cuda=False):
         super(MPNN, self).__init__()
         self.T = T
+        self.n_tasks = n_tasks
         self.R = nn.Linear(150, 128)
         self.U = nn.ModuleList([nn.Linear(156, 75), nn.Linear(156, 75), nn.Linear(156, 75)])
         self.V = nn.ModuleList([nn.Linear(75, 75), nn.Linear(75, 75), nn.Linear(75, 75)])
         self.E = nn.Linear(6, 6)
         self.dropout = nn.Dropout(p=p)
         self.output = nn.Linear(128, 1) # turn this into ModuleList
+        self.output_layer_list = nn.ModuleList([nn.Linear(128,1)]*self.n_tasks) # create a list of output layers based on number of tasks
 
     def readout(self, h, h2):
         catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
-        return self.output(self.dropout(torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0)))
+        outputs = []
+        feature_map = torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0)
+        for output_layer in self.output_layer_list:
+            outputs.append(output_layer(self.dropout(feature_map)))
+        return outputs
 
     def message_pass(self,g,h,k):
         # for each node v in the graph G
+        #TODO: could use multiprocessing here to iterate over all nodes in parallel?
         for v in g.keys():
             neighbors = g[v]
             # for each neighbor of v

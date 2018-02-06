@@ -9,7 +9,7 @@ def collate_fn(batch):
     return batch
 
 
-def train_step(model, batch, loss_fn, use_cuda=False):
+def train_step(model, batch, loss_fn, target_list, use_cuda=False):
     preds = []
     targets = []
     losses = []
@@ -22,53 +22,71 @@ def train_step(model, batch, loss_fn, use_cuda=False):
 
         # Forward pass: compute output of the network by passing x through the model.
         y_pred = model(h=data["h"], g=data["g"])
-        y_true = Variable(torch.from_numpy(data["target"]).float())
-        if use_cuda: # TODO: add logic for cpu mode
-            y_true = y_true.cuda()
         # Compute loss.
-        loss = loss_fn(y_pred, y_true)
+        loss = Variable(torch.zeros(1).float(), requires_grad=False)
+        for pred, target in zip(y_pred, target_list):
+            if use_cuda:
+                y_true = Variable(torch.from_numpy(data[target]).float().cuda())
+                loss = loss.cuda()
+                loss += loss_fn(pred, y_true)
+                losses.append(loss.data.cpu().numpy().ravel())
+                targets.append(y_true.data.cpu().numpy().ravel())
+                preds.append(pred.data.cpu().numpy().ravel())
+            else:
+                y_true =  Variable(torch.from_numpy(data[target])).float()
+                loss += loss_fn(pred,y_true)
+                losses.append(loss.data.numpy().ravel())
+                targets.append(y_true.data.numpy().ravel())
+                preds.append(pred.data.numpy().ravel())
         loss.backward()
-        losses.append(loss.data.cpu().numpy().ravel())
-        targets.append(y_true.data.cpu().numpy().ravel())
-        preds.append(y_pred.data.cpu().numpy().ravel())
+
     r2 = r2_score(y_true=np.ravel(targets), y_pred=np.ravel(preds))
 
     stop_train_clock = time.clock()
 
-    return {"loss": np.mean(losses), "r2": np.mean(r2), "time": (stop_train_clock - start_train_clock)}
+    return {"loss": np.mean(losses), "r2": r2, "time": (stop_train_clock - start_train_clock)}
 
 
-def validation_step(model, dataloader, loss_fn, use_cuda=False):
+def validation_step(model, batch, loss_fn,target_list, use_cuda=False):
     # make sure model is evaluation mode
     model.eval()
 
     preds = []
     targets = []
     losses = []
-    r2s = []
 
     start_clock = time.clock()
-    for batch in tqdm(dataloader, total=len(dataloader)):
-        for data in batch:
 
-            # Forward pass: compute output of the network by passing x through the model.
-            y_pred = model(h=data["h"], g=data["g"])
-            y_true = Variable(torch.from_numpy(data["target"]).float())
-            if use_cuda: #TODO: add logic for cpu mode
-                y_true = y_true.cuda()
-            # Compute loss.
-            losses.append(loss_fn(y_pred, y_true).data.cpu().numpy().ravel())
-            targets.append(y_true.data.cpu().numpy().ravel())
-            preds.append(y_pred.data.cpu().numpy().ravel())
-        r2s.append(r2_score(y_true=np.ravel(targets), y_pred=np.ravel(preds)))
+    for data in tqdm(batch, total=len(batch)):
+
+        # Forward pass: compute output of the network by passing x through the model.
+        y_pred = model(h=data["h"], g=data["g"])
+        # Compute loss.
+        loss = Variable(torch.zeros(1).float(), requires_grad=False)
+
+        for pred, target in zip(y_pred, target_list):
+            if use_cuda:
+                y_true = Variable(torch.from_numpy(data[target]).float().cuda())
+                loss = loss.cuda()
+                loss += loss_fn(pred, y_true)
+                losses.append(loss.data.cpu().numpy().ravel())
+                targets.append(y_true.data.cpu().numpy().ravel())
+                preds.append(pred.data.cpu().numpy().ravel())
+            else:
+                y_true =  Variable(torch.from_numpy(data[target])).float()
+                loss += loss_fn(pred,y_true)
+                losses.append(loss.data.numpy().ravel())
+                targets.append(y_true.data.numpy().ravel())
+                preds.append(pred.data.numpy().ravel())
 
     stop_clock = time.clock()
+    r2 = r2_score(y_true=np.ravel(targets), y_pred=np.ravel(preds))
 
     # put the model back into training mode
     model.train()
 
     # return a dictionary objects containing the validation metrics
-    return {"loss": np.mean(losses), "r2": np.mean(r2s), "time": (stop_clock - start_clock)}
+    return {"loss": np.mean(losses), "r2": r2, "time": (stop_clock - start_clock)}
 
 
 def update_scalars(writer, train_dict, val_dict, step):

@@ -1,10 +1,3 @@
-'''
-    Code adapted from the Kesier Lab implementation of "Convolutional Networks on Graphs for Learning Molecular Fingerprints"
-
-    url: https://github.com/keiserlab/keras-neural-graph-fingerprint
-'''
-# import torch
-
 import os
 import h5py
 import torch
@@ -13,8 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from torch.autograd import Variable
-from collections import OrderedDict
-import deepchem as dc
+import dc_features as dc
 from sklearn.utils import shuffle
 from rdkit import Chem
 
@@ -25,23 +17,25 @@ class MoleculeDataset(Dataset):
         self._cuda = cuda
 
     def construct_multigraph(self, smile):
-        # pretty sure that OrderedDict offers no advantage, only increased access complexity, as opposed to dict in python 3.6
-        # g = OrderedDict({})
-        # h = OrderedDict({})
         g = {}
         h = {}
         molecule = Chem.MolFromSmiles(smile)
         for i in range(0, molecule.GetNumAtoms()):
             atom_i = molecule.GetAtomWithIdx(i)
             if self._cuda:
-                h[i] = Variable(torch.from_numpy(dc.feat.graph_features.atom_features(atom_i)).view(1, 75)).float().cuda()
+                h[i] = Variable(
+                    torch.from_numpy(dc.atom_features(atom_i)).view(1, 75)).float().cuda()
             else:
-                h[i] = Variable(torch.from_numpy(dc.feat.graph_features.atom_features(atom_i)).view(1, 75)).float()
+                h[i] = Variable(
+                    torch.from_numpy(dc.atom_features(atom_i)).view(1, 75)).float()
+
             for j in range(0, molecule.GetNumAtoms()):
                 e_ij = molecule.GetBondBetweenAtoms(i, j)
                 if e_ij is not None:
+                    # e_ij = map(lambda x: 1 if x == True else 0,
+                    #             dc.feat.graph_features.bond_features(e_ij))  # ADDED edge feat
                     e_ij = map(lambda x: 1 if x == True else 0,
-                                dc.feat.graph_features.bond_features(e_ij))  # ADDED edge feat
+                        dc.bond_features(e_ij))
                     if self._cuda:
                         e_ij = Variable(torch.from_numpy(np.fromiter(e_ij, dtype=float))).view(1, 6).float().cuda()
                     else:
@@ -78,12 +72,15 @@ class MoleculeDatasetCSV(MoleculeDataset):
         return self.data.shape[0]
 
     def __getitem__(self, item):
+        # TODO: should an ordered dict be used here if number of targets becomes large?
         compound = self.data.iloc[item]
         smiles = compound["smiles"]
-        targets = compound[self.targets]
         data = self.construct_multigraph(smiles)
-        return {"g": data[0], "h": data[1],
-                "target": np.asarray(targets).astype('float')}
+        item_dict = {"g": data[0], "h": data[1]}
+        for target in self.targets:
+                item_dict[target] = np.asarray([compound[target]],dtype=float)
+
+        return item_dict
 
 
 class MoleculeDatasetH5(MoleculeDataset):
