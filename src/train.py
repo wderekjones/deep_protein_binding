@@ -3,6 +3,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('-D', type=str, help="path to dataset")
 parser.add_argument('-L', type=str, help="path to labels to use")
+parser.add_argument("--T", type=int, help="number of message passing steps", default=3)
 parser.add_argument("--n_workers", type=int, help="number of workers to use in data loader", default=0)
 parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)
 parser.add_argument("--n_epochs", type=int, help="number of training epochs", default=1)
@@ -10,7 +11,7 @@ parser.add_argument("--use_cuda", type=bool, help="indicates whether to use gpu"
 parser.add_argument("--lr", type=float, help="learning rate to use for training", default=1e-3)
 parser.add_argument("--p", type=float, help="value for p in dropout layer", default=0.5)
 parser.add_argument("--exp_name", type=str, help="name of the experiment", default="debug")
-
+parser.add_argument("--scale", type=str, help="type of scaling to use (norm or std)", default="std")
 args = parser.parse_args()
 
 
@@ -21,6 +22,7 @@ if __name__ == "__main__":
     multiprocessing.set_start_method("forkserver")
     import os
     import torch
+    torch.manual_seed(0)
     import time
     from torch.utils.data.sampler import SubsetRandomSampler
     import numpy as np
@@ -30,12 +32,10 @@ if __name__ == "__main__":
     from tensorboardX import SummaryWriter
     from model import MPNN
     from utils import collate_fn, validation_step, train_step, update_scalars
-    #TODO: implement cuda functionality, must convert model to cuda, convert input tensors and target, and criterion each to cuda
-    #TODO: implement tensorboard functionality
-    #TODO: implement multitask, use ModuleList object to hold (dynamically allocated) output layers for each task
-    #TODO: use pinned memory for cuda?
-    #TODO:implement random number generator seeds for numpy and pytorch
+    from loss import MultiTaskLoss
+    # TODO:implement random number generator seeds for numpy and pytorch
     # TODO: support using one copy of the model and loading it form disk before continuing to train
+    # TODO:
 
     print("{:=^100}".format(' Train '))
 
@@ -46,9 +46,10 @@ if __name__ == "__main__":
     #                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv",targets=["label"],num_workers=1)
 
     print("loading data...")
-    target_list= ["Hy", "MLOGP", "vina_score"]
+    target_list = ["Uc", "Ui","Hy","TPSA(NO)","MLOGP","MLOGP2", "SAtot", "SAacc", "SAdon","Vx","VvdwMG", "VvdwZAZ","PDI","cRo5"]
+    # target_list=["MLOGP", "MLOGP2"]
     molecules = MoleculeDatasetCSV(csv_file="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv",
-                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv", targets=target_list, cuda=args.use_cuda)
+                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv", targets=target_list, cuda=args.use_cuda,scaling=args.scale)
 
     experiment_name = args.exp_name + "_" + str(time.time())
     epochs = args.n_epochs
@@ -75,7 +76,8 @@ if __name__ == "__main__":
           "num_workers: {} \t use_cuda: {}".format(train_idxs.shape[0], val_idxs.shape[0],batch_size, args.lr, args.p, num_iters, num_workers, args.use_cuda))
 
     print("instantiating model...")
-    model = MPNN(T=3, p=args.p, n_tasks=len(target_list))
+    model = MPNN(T=args.T, p=args.p, n_tasks=len(target_list))
+    model.init_weights("orthogonal")
     print(model)
     if args.use_cuda:
         model.cuda()
@@ -83,7 +85,8 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    loss_fn = torch.nn.MSELoss()
+    # loss_fn = torch.nn.MSELoss()
+    loss_fn = MultiTaskLoss(n_tasks=len(target_list))
     if args.use_cuda:
         loss_fn.cuda()
 
@@ -105,24 +108,29 @@ if __name__ == "__main__":
             optimizer.zero_grad()
 
             # take a training step, i.e. process the mini-batch and accumulate gradients
-            train_dict = train_step(model=model, batch=batch, target_list=target_list, loss_fn=loss_fn, use_cuda=args.use_cuda)
+            train_dict = train_step(model=model, batch=batch, target_list=target_list, loss_fn=loss_fn,
+                                    use_cuda=args.use_cuda)
 
-            print("epoch: {} \t step: {} \t train loss: {} \t train r2_score: {}".format(epoch, idx,
-                                                                             train_dict["loss"],
-                                                                             train_dict["r2"]))
+            print("epoch: {} \t step: {} \t train loss: {}".format(epoch, idx,
+                                                                             train_dict["loss"].data))
 
             if idx % 10 == 0:
                 # take a validation step for every 10 training steps
-                val_dict = validation_step(model=model, batch=next(iter(molecule_loader_val)), loss_fn=loss_fn, target_list=target_list, use_cuda=args.use_cuda)
-                print("\n epoch: {} \t step: {} \t val loss: {} \t val r2_score: {}".format(epoch, idx,
-                                                                        val_dict["loss"],
-                                                                        val_dict["r2"]))
+                val_dict = validation_step(model=model, batch=next(iter(molecule_loader_val)), loss_fn=loss_fn,
+                                           target_list=target_list, use_cuda=args.use_cuda)
+                print("\n epoch: {} \t step: {} \t val loss: {}".format(epoch, idx,
+                                                                        val_dict["loss"].data))
 
             # update the model parameters
             optimizer.step()
             # log the information to tensorboard
             update_scalars(writer=writer, train_dict=train_dict, val_dict=val_dict, step=global_step)
             global_step += 1
+
+        print("Saving model weights...")
+        if not os.path.exists("checkpoints/"):
+            os.makedirs("checkpoints/")
+        torch.save(model.state_dict(), "checkpoints/"+experiment_name+"_epoch"+str(epoch))
 
     print("Finished training model")
 
@@ -135,7 +143,4 @@ if __name__ == "__main__":
     writer.export_scalars_to_json(scalar_path)
     writer.close()
 
-    print("Saving model weights...")
-    if not os.path.exists("checkpoints/"):
-        os.makedirs("checkpoints/")
-    torch.save(model.state_dict(), "checkpoints/"+experiment_name)
+

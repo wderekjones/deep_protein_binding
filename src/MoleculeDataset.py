@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 from torch.autograd import Variable
 import dc_features as dc
 from sklearn.utils import shuffle
+from sklearn.preprocessing import StandardScaler, Normalizer
 from rdkit import Chem
 
 
@@ -56,15 +57,23 @@ class MoleculeDataset(Dataset):
 
 class MoleculeDatasetCSV(MoleculeDataset):
 
-    def __init__(self, csv_file, targets, corrupt_path, cuda=False):
+    def __init__(self, csv_file, targets, corrupt_path, cuda=False, scaling=None):
         super(MoleculeDatasetCSV, self).__init__()
         self.csv_file = csv_file
         self._cuda = cuda
+        self.scaling = scaling
         self.targets = targets
         cols = ["receptor", "drugID", "smiles", "label"] + targets
         self.data = pd.read_csv(csv_file, usecols=cols)
         self.corrupt_compound_df = pd.read_csv(corrupt_path)
         self.data = self.data[~self.data.drugID.isin(self.corrupt_compound_df.drugID)]
+        if self.scaling == "std":
+            print("standardizing data...")
+            self.data[self.targets] = StandardScaler().fit_transform(self.data[self.targets])
+        elif self.scaling == "norm":
+            print("normalizing data...")
+            self.data[self.targets] = Normalizer().fit_transform(self.data[self.targets])
+
         self.data = shuffle(self.data)
         self.activities = self.data["label"]
 
@@ -78,7 +87,7 @@ class MoleculeDatasetCSV(MoleculeDataset):
         data = self.construct_multigraph(smiles)
         item_dict = {"g": data[0], "h": data[1]}
         for target in self.targets:
-                item_dict[target] = np.asarray([compound[target]],dtype=float)
+            item_dict[target] = np.asarray([compound[target]],dtype=float)
 
         return item_dict
 
