@@ -7,32 +7,47 @@ from torch import nn
 
 class MPNN(nn.Module):
 
-    def __init__(self, T=3, p=0.5, n_tasks=1):
+    def __init__(self, T=3, p=0.5, n_tasks=1, n_atom_feats=70, n_bond_feats=146, name="mpnn"):
         super(MPNN, self).__init__()
         self.T = T
+        self.name = name
         self.n_tasks = n_tasks
-        self.R = nn.Linear(150, 128)
-        self.U = nn.ModuleList([nn.Linear(156, 75)] * self.T)
-        self.V = nn.ModuleList([nn.Linear(75, 75)] * self.T)
+        self.n_atom_feats = n_atom_feats
+        self.n_bond_feats = n_bond_feats
+        self.R = nn.Linear(140, 128)
+        self.U = nn.ModuleList([nn.Linear(self.n_bond_feats, self.n_atom_feats)] * self.T)
+        self.V = nn.ModuleList([nn.Linear(self.n_atom_feats, self.n_atom_feats)] * self.T)
         self.E = nn.Linear(6, 6)
         self.dropout = nn.Dropout(p=p)
-        self.hidden_layer_list = nn.ModuleList([nn.Linear(128, 64)]*self.n_tasks)
-        self.output_layer_list = nn.ModuleList([nn.Linear(64, 1)]*self.n_tasks) # create a list of output layers based on number of tasks
+        self.shared_hidden1 = nn.Linear(128,128)
+        self.shared_hidden2 = nn.Linear(128,100)
+        self.hidden_layer_list = nn.ModuleList([nn.Linear(100, 100)]*self.n_tasks)
+        self.output_layer_list = nn.ModuleList([nn.Linear(100, 1)]*self.n_tasks)  # create a list of output layers based on number of tasks
 
-    def orthogonal_init(self,m):
+    def weights_init(self, m):
         if isinstance(m, nn.Conv2d):
-            torch.nn.init.orthogonal(m.weight.data)
+            torch.nn.init.xavier_normal(m.weight.data)  # pretty sure that this is the default pytorch initialization
 
-    def init_weights(self,method):
-        if method == "orthogonal":
-            self.apply(self.orthogonal_init)
+    def init_weights(self):
+        self.apply(self.weights_init)
+
+    def get_n_hidden_units(self):
+        n_units = 0
+        for child in self.children():
+            for param in child.named_parameters():
+                if 'weight' in param[0]:
+                    n_units += param[1].data.size()[0]
+                # elif 'bias' in param[0]
+        return n_units
+
 
     def readout(self, h, h2):
         catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
         outputs = []
         feature_map = torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0)
         for output_layer, hidden_layer in zip(self.output_layer_list,self.hidden_layer_list):
-            outputs.append(output_layer(torch.nn.ReLU()(hidden_layer(self.dropout(feature_map)))))
+            # outputs.append(output_layer(torch.nn.Tanh()(hidden_layer(self.dropout(feature_map)))))
+            outputs.append(output_layer(torch.nn.ReLU()(hidden_layer(self.shared_hidden2(torch.nn.ReLU()(torch.nn.ReLU()(self.shared_hidden1(feature_map))))))))
         return outputs
 
     def message_pass(self,g,h,k):

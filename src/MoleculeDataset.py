@@ -25,10 +25,10 @@ class MoleculeDataset(Dataset):
             atom_i = molecule.GetAtomWithIdx(i)
             if self._cuda:
                 h[i] = Variable(
-                    torch.from_numpy(dc.atom_features(atom_i)).view(1, 75)).float().cuda()
+                    torch.from_numpy(dc.atom_features(atom_i, explicit_H=True)).view(1, 70)).float().cuda()
             else:
                 h[i] = Variable(
-                    torch.from_numpy(dc.atom_features(atom_i)).view(1, 75)).float()
+                    torch.from_numpy(dc.atom_features(atom_i, explicit_H=True)).view(1, 70)).float()
 
             for j in range(0, molecule.GetNumAtoms()):
                 e_ij = molecule.GetBondBetweenAtoms(i, j)

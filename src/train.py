@@ -1,66 +1,47 @@
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-D', type=str, help="path to dataset")
-parser.add_argument('-L', type=str, help="path to labels to use")
-parser.add_argument("--T", type=int, help="number of message passing steps", default=3)
-parser.add_argument("--n_workers", type=int, help="number of workers to use in data loader", default=0)
-parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)
-parser.add_argument("--n_epochs", type=int, help="number of training epochs", default=1)
-parser.add_argument("--use_cuda", type=bool, help="indicates whether to use gpu", default=False)
-parser.add_argument("--lr", type=float, help="learning rate to use for training", default=1e-3)
-parser.add_argument("--p", type=float, help="value for p in dropout layer", default=0.5)
-parser.add_argument("--exp_name", type=str, help="name of the experiment", default="debug")
-parser.add_argument("--scale", type=str, help="type of scaling to use (norm or std)", default="std")
-args = parser.parse_args()
-
+from utils import get_args
+args = get_args()
 
 if __name__ == "__main__":
-    import torch.multiprocessing as multiprocessing
-    # mp = mp.get_context("forkserver")
-    # mp = mp.get_context("spawn")
-    multiprocessing.set_start_method("forkserver")
+    import torch.multiprocessing as mp
+    mp = mp.get_context("forkserver")
     import os
+    import time
+    import sys
     import torch
     torch.manual_seed(0)
-    import time
     from torch.utils.data.sampler import SubsetRandomSampler
     import numpy as np
     from MoleculeDataset import MoleculeDatasetH5, MoleculeDatasetCSV
     from torch.utils.data import DataLoader
-    from sklearn.model_selection import train_test_split
     from tensorboardX import SummaryWriter
     from model import MPNN
-    from utils import collate_fn, validation_step, train_step, update_scalars
-    from loss import MultiTaskLoss
-    # TODO:implement random number generator seeds for numpy and pytorch
-    # TODO: support using one copy of the model and loading it form disk before continuing to train
-    # TODO:
+    from utils import collate_fn, validation_step, train_step, update_tensorboard, get_loss
 
     print("{:=^100}".format(' Train '))
+    print("run parameters: {} \n".format(sys.argv))
 
-
-
-
-    # data = MoleculeDatasetH5(data_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/datasets", list_dir="/mounts/u-vul-d1/scratch/wdjo224/data/deep_protein_binding/dataset_compounds",
-    #                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv",targets=["label"],num_workers=1)
+    if not os.path.exists("experiments/"+args.exp_name):
+        os.makedirs("experiments/"+args.exp_name)
+    exp_time = str(time.time())
+    experiment_path = "experiments/"+args.exp_name + "/" + args.exp_name+"_"+exp_time
 
     print("loading data...")
-    target_list = ["Uc", "Ui","Hy","TPSA(NO)","MLOGP","MLOGP2", "SAtot", "SAacc", "SAdon","Vx","VvdwMG", "VvdwZAZ","PDI","cRo5"]
-    # target_list=["MLOGP", "MLOGP2"]
-    molecules = MoleculeDatasetCSV(csv_file="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv",
-                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv", targets=target_list, cuda=args.use_cuda,scaling=args.scale)
 
-    experiment_name = args.exp_name + "_" + str(time.time())
+    if args.target_file is None:
+        target_list = args.target_list
+    else:
+        raise Exception("file reading for target lists not implemented, specify target list instead")
+
+    molecules = MoleculeDatasetCSV(csv_file="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv",
+                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv", targets=target_list, cuda=args.use_cuda, scaling=args.scale)
+
+    model_path = args.model_path
     epochs = args.n_epochs
     batch_size = args.batch_size
     num_workers = args.n_workers
-    idxs = np.arange(0, len(molecules))
-
-    train_idxs, val_idxs = train_test_split(idxs, stratify=molecules.activities.as_matrix().squeeze(), random_state=0)
-
+    train_idxs = np.fromfile(args.train_idxs, dtype=np.int)
+    val_idxs = np.fromfile(args.val_idxs, dtype=np.int)
     num_iters = int(np.ceil(train_idxs.shape[0] / batch_size))
-
 
     molecule_loader_train = DataLoader(molecules, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn,
                                        sampler=SubsetRandomSampler(train_idxs))
@@ -69,35 +50,39 @@ if __name__ == "__main__":
 
     if args.use_cuda:
         molecule_loader_train = DataLoader(molecules, batch_size=batch_size, num_workers=num_workers,
-                                           collate_fn=collate_fn, pin_memory=True, sampler=train_idxs)
+                                           collate_fn=collate_fn, pin_memory=True, sampler=SubsetRandomSampler(train_idxs))
         molecule_loader_val = DataLoader(molecules, batch_size=batch_size, num_workers=num_workers,
-                                           collate_fn=collate_fn, pin_memory=True, sampler=val_idxs)
-    print("train size: {} \t val size: {} \t batch size: {} \t learning rate: {} \t dropout p: {} \t num_iterations: {} \t "
-          "num_workers: {} \t use_cuda: {}".format(train_idxs.shape[0], val_idxs.shape[0],batch_size, args.lr, args.p, num_iters, num_workers, args.use_cuda))
+                                           collate_fn=collate_fn, pin_memory=True, sampler=SubsetRandomSampler(val_idxs))
+
 
     print("instantiating model...")
     model = MPNN(T=args.T, p=args.p, n_tasks=len(target_list))
-    model.init_weights("orthogonal")
+    if model_path is not None:
+        model.load_state_dict(model_path)
+    else:
+        model.init_weights()
     print(model)
     if args.use_cuda:
         model.cuda()
-    model.share_memory()
+    model.share_memory()  # is this necessary? maybe for when train loop is parallelized
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    # loss_fn = torch.nn.MSELoss()
-    loss_fn = MultiTaskLoss(n_tasks=len(target_list))
+    loss_fn = get_loss(args)
     if args.use_cuda:
         loss_fn.cuda()
 
     print("initializing tensorboard writer...")
-    # Create a writer for tensorboard
+    # Create a writer for tensorboard, add the command line arguments and targets to tensorboard
     if not os.path.exists("logs/"):
         os.makedirs("logs/")
-    writer = SummaryWriter("logs/"+experiment_name)
-    dummy_input = molecules[0]
+    writer = SummaryWriter("logs/"+args.exp_name+"_"+str(exp_time))
+    writer.add_text('args', str(sys.argv))
+    writer.add_text("targets", str(args.target_list))
+
+
     global_step = 0
-    # writer.add_graph_onnx(model)
+
     # Train the model
     print("Training Model...")
     for epoch in range(0, epochs):
@@ -120,27 +105,32 @@ if __name__ == "__main__":
                                            target_list=target_list, use_cuda=args.use_cuda)
                 print("\n epoch: {} \t step: {} \t val loss: {}".format(epoch, idx,
                                                                         val_dict["loss"].data))
+                # log the information to tensorboard
+                update_tensorboard(writer=writer, train_dict=train_dict, val_dict=val_dict, step=global_step)
+            else:
+                # lof the information to tensorboard
+                update_tensorboard(writer=writer, train_dict=train_dict, val_dict=None, step=global_step)
 
+            if idx % 100 == 0:
+                print("Saving model checkpoint...")
+                if not os.path.exists(experiment_path + "/checkpoints/"):
+                    os.makedirs(experiment_path + "/checkpoints/")
+                torch.save(model.state_dict(),
+                           experiment_path + "/checkpoints/" + args.exp_name + "_" + str(exp_time) + "_epoch" + str(
+                               epoch)+"_step_"+str(global_step))
             # update the model parameters
             optimizer.step()
-            # log the information to tensorboard
-            update_scalars(writer=writer, train_dict=train_dict, val_dict=val_dict, step=global_step)
-            global_step += 1
 
-        print("Saving model weights...")
-        if not os.path.exists("checkpoints/"):
-            os.makedirs("checkpoints/")
-        torch.save(model.state_dict(), "checkpoints/"+experiment_name+"_epoch"+str(epoch))
+            global_step += 1
 
     print("Finished training model")
 
     # Output training metrics
     print("Saving training metrics")
-    scalar_path = "results/" + experiment_name + "_all_scalars.json"
-    if not os.path.exists("results/"):
-        os.makedirs("results/")
+    scalar_path = experiment_path+"/results/" + args.exp_name+"_"+str(exp_time)+ "_all_scalars.json"
+    if not os.path.exists(experiment_path+"/results/"):
+        os.makedirs(experiment_path+"/results/")
 
     writer.export_scalars_to_json(scalar_path)
     writer.close()
-
 
