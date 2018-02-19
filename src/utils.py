@@ -7,10 +7,11 @@ from sklearn.metrics import r2_score
 from tqdm import tqdm
 from loss import MultiTaskHomoscedasticLoss, MultiTaskNormalLoss, MultiTaskWeightedLoss
 
+
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-D', type=str, help="path to dataset")
-    parser.add_argument('-L', type=str, help="path to labels to use")
+    parser.add_argument('-D', type=str, help="path to dataset", default="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv")
+    parser.add_argument('-c', type=str, help="path to corrupted inputs", default="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv")
     parser.add_argument("--T", type=int, help="number of message passing steps", default=3)
     parser.add_argument("--n_workers", type=int, help="number of workers to use in data loader", default=0)
     parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)

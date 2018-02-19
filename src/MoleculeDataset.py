@@ -74,7 +74,6 @@ class MoleculeDatasetCSV(MoleculeDataset):
             print("normalizing data...")
             self.data[self.targets] = Normalizer().fit_transform(self.data[self.targets])
 
-        self.data = shuffle(self.data)
         self.activities = self.data["label"]
 
     def __len__(self):

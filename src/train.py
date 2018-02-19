@@ -32,8 +32,8 @@ if __name__ == "__main__":
     else:
         raise Exception("file reading for target lists not implemented, specify target list instead")
 
-    molecules = MoleculeDatasetCSV(csv_file="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv",
-                              corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv", targets=target_list, cuda=args.use_cuda, scaling=args.scale)
+    molecules = MoleculeDatasetCSV(csv_file=args.D,
+                              corrupt_path=args.c, targets=target_list, cuda=args.use_cuda, scaling=args.scale)
 
     model_path = args.model_path
     epochs = args.n_epochs

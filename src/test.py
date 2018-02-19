@@ -12,6 +12,7 @@ if __name__ == "__main__":
     import torch
     torch.manual_seed(0)
     import sys
+    import os
     import pandas as pd
     import numpy as np
     from torch.utils.data.sampler import SubsetRandomSampler
@@ -30,8 +31,8 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(args.model_path))
     model.eval()
     molecules = MoleculeDatasetCSV(
-        csv_file="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv",
-        corrupt_path="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv", targets=args.target_list,
+        csv_file=args.D,
+        corrupt_path=args.c, targets=args.target_list,
         cuda=args.use_cuda, scaling=args.scale)
 
     test_idxs = np.fromfile(args.test_idxs, dtype=np.int)
@@ -55,6 +56,11 @@ if __name__ == "__main__":
 
         print("\nstep: {} \t val loss: {}".format(idx, val_dict["loss"].data))
 
+    print("saving results...")
+    if not os.path.exists("results/"):
+        os.makedirs("results/")
+
     output_loss_summary.to_csv("results/"+args.exp_name+"_test_loss.csv", index=False)
     output_r2_summary.to_csv("results/"+args.exp_name+"_test_r2.csv", index=False)
 
+    print("evaluation complete.")
