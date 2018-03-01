@@ -15,7 +15,7 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from tensorboardX import SummaryWriter
     from model import MPNN
-    from utils import collate_fn, validation_step, train_step, update_tensorboard, get_loss
+    from utils import collate_fn, update_tensorboard, get_loss
 
     print("{:=^100}".format(' Train '))
     print("run parameters: {} \n".format(sys.argv))
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
 
     print("instantiating model...")
-    model = MPNN(T=args.T, p=args.p, n_tasks=len(target_list))
+    model = MPNN(T=args.T, p=args.p, target_list=target_list, output_type=args.output_type, output_dim=args.output_dim)
     if model_path is not None:
         model.load_state_dict(model_path)
     else:
@@ -93,16 +93,16 @@ if __name__ == "__main__":
             optimizer.zero_grad()
 
             # take a training step, i.e. process the mini-batch and accumulate gradients
-            train_dict = train_step(model=model, batch=batch, target_list=target_list, loss_fn=loss_fn,
-                                    use_cuda=args.use_cuda)
+            train_dict = model.train_step(batch=batch, loss_fn=loss_fn)
 
             print("epoch: {} \t step: {} \t train loss: {}".format(epoch, idx,
                                                                              train_dict["loss"].data))
 
             if idx % 10 == 0:
+
                 # take a validation step for every 10 training steps
-                val_dict = validation_step(model=model, batch=next(iter(molecule_loader_val)), loss_fn=loss_fn,
-                                           target_list=target_list, use_cuda=args.use_cuda)
+                val_dict = model.validation_step(batch=next(iter(molecule_loader_val)), loss_fn=loss_fn)
+
                 print("\n epoch: {} \t step: {} \t val loss: {}".format(epoch, idx,
                                                                         val_dict["loss"].data))
                 # log the information to tensorboard

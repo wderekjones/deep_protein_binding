@@ -14,11 +14,11 @@ class MultiTaskHomoscedasticLoss(nn.Module):
         self.loss_list = nn.ModuleList([nn.MSELoss()]*self.n_tasks)
 
         if prior == "unweighted":
-            self.loss_weights = Variable(torch.ones(self.n_tasks), requires_grad=True)
+            self.loss_weights = Parameter(torch.ones(self.n_tasks), requires_grad=False)
         elif prior == "uniform":
-            self.loss_weights = Variable(torch.rand(self.n_tasks), requires_grad=True)
+            self.loss_weights = Parameter(torch.rand(self.n_tasks), requires_grad=False)
         elif prior == "normal":
-            self.loss_weights = Variable(torch.normal(mean=0.5,std=torch.ones(self.n_tasks)), requires_grad=True)
+            self.loss_weights = Parameter(torch.normal(mean=0.5,std=torch.ones(self.n_tasks)), requires_grad=False)
         else:
             raise Exception("Not a valid prior..")
 
@@ -65,19 +65,19 @@ class MultiTaskWeightedLoss(nn.Module):
 # TODO: test this loss function
 # automatically optimizes for n normal distribution over loss weight values
 class MultiTaskNormalLoss(nn.Module):
-    def __init__(self, n_tasks):
+    def __init__(self, n_tasks, std=1e-3):
         super(MultiTaskNormalLoss, self).__init__()
         self.n_tasks = n_tasks
         self.loss_list =nn.ModuleList([nn.MSELoss()]*self.n_tasks)
 #       # use a normal over n_dimensional vectors with the assumption that the individual weights are not independent
-        self.mean = Variable(torch.zeros(self.n_tasks), requires_grad=True)
-        self.std = Variable(torch.ones(self.n_tasks), requires_grad=True)
+        self.mean = Variable(torch.ones(self.n_tasks), requires_grad=True)
+        self.std = Variable(std*torch.ones(self.n_tasks), requires_grad=True)
 
     def forward(self, batch_dict):
         loss = Variable(torch.zeros(1).float(), requires_grad=False)
 
         # parameterize the distribution, then sample to get updated weight values
-        loss_weights = torch.distributions.Normal(self.mean, self.std).sample()
+        loss_weights = torch.nn.Softmax()(torch.distributions.Normal(self.mean, self.std).sample())
         for idx, target in enumerate(batch_dict.keys()):
             target_loss = loss_weights[idx] * self.loss_list[idx](torch.stack(batch_dict[target]["pred"]),
                                                                     torch.stack(batch_dict[target]["true"]))
@@ -87,3 +87,28 @@ class MultiTaskNormalLoss(nn.Module):
             loss += target_loss
 
         return loss
+
+
+class MultiTaskBCELoss(nn.Module):
+    def __init__(self, n_tasks, prior=None):
+        super(MultiTaskBCELoss, self).__init__()
+        self.n_tasks = n_tasks
+        self.loss_list = nn.ModuleList([nn.BCELoss()] * self.n_tasks)
+        if prior is not None:
+            self.loss_weights = Parameter(torch.from_numpy(prior).float(), requires_grad=False)
+        else:
+            self.loss_weights = Parameter(torch.ones(self.n_tasks), requires_grad=False)
+
+    def forward(self, batch_dict):
+        loss = Variable(torch.zeros(1).float(), requires_grad=False)
+
+        for idx, target in enumerate(batch_dict.keys()):
+
+            target_loss = self.loss_weights[idx] * self.loss_list[idx](torch.stack(batch_dict[target]["pred"]).float(),
+                                    torch.stack(batch_dict[target]["true"]).float())
+            batch_dict[target]["loss"] = target_loss.data.cpu().numpy().ravel()
+            batch_dict[target]["loss_weight"] = self.loss_weights[idx].data.cpu().numpy()
+            loss += target_loss
+
+        return loss
+
