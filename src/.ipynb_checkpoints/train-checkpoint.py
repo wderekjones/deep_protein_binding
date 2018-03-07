@@ -3,10 +3,7 @@ args = get_args()
 
 if __name__ == "__main__":
     import torch.multiprocessing as mp
-    # mp.set_start_method("spawn")
-    mp.set_sharing_strategy("file_system")
-    mp = mp.get_context("spawn")
-
+    mp = mp.get_context("forkserver")
     import os
     import time
     import sys
@@ -18,21 +15,25 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from tensorboardX import SummaryWriter
     from model import MPNN
-    from utils import collate_fn, update_tensorboard, get_loss
+    from utils import collate_fn, validation_step, train_step, update_tensorboard, get_loss
 
     print("{:=^100}".format(' Train '))
-    print("experiment: {}".format(args.exp_name))
     print("run parameters: {} \n".format(sys.argv))
-    root = "/scratch/wdjo224/deep_protein_binding/"
-    if not os.path.exists(root+"experiments/"+args.exp_name):
-        os.makedirs(root+"experiments/"+args.exp_name)
+
+    if not os.path.exists("experiments/"+args.exp_name):
+        os.makedirs("experiments/"+args.exp_name)
     exp_time = str(time.time())
-    experiment_path = root+"experiments/"+args.exp_name + "/" + args.exp_name+"_"+exp_time
+    experiment_path = "experiments/"+args.exp_name + "/" + args.exp_name+"_"+exp_time
 
     print("loading data...")
 
+    if args.target_file is None:
+        target_list = args.target_list
+    else:
+        raise Exception("file reading for target lists not implemented, specify target list instead")
+
     molecules = MoleculeDatasetCSV(csv_file=args.D,
-                              corrupt_path=args.c, target=args.target, cuda=args.use_cuda, scaling=args.scale)
+                              corrupt_path=args.c, targets=target_list, cuda=args.use_cuda, scaling=args.scale)
 
     model_path = args.model_path
     epochs = args.n_epochs
@@ -44,28 +45,40 @@ if __name__ == "__main__":
 
     molecule_loader_train = DataLoader(molecules, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn,
                                        sampler=SubsetRandomSampler(train_idxs))
-    molecule_loader_val = DataLoader(molecules, batch_size=batch_size, num_workers=0, collate_fn=collate_fn,
+    molecule_loader_val = DataLoader(molecules, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn,
                                        sampler=SubsetRandomSampler(val_idxs))
 
+    if args.use_cuda:
+        molecule_loader_train = DataLoader(molecules, batch_size=batch_size, num_workers=num_workers,
+                                           collate_fn=collate_fn, pin_memory=True, sampler=SubsetRandomSampler(train_idxs))
+        molecule_loader_val = DataLoader(molecules, batch_size=batch_size, num_workers=num_workers,
+                                           collate_fn=collate_fn, pin_memory=True, sampler=SubsetRandomSampler(val_idxs))
+
+
     print("instantiating model...")
-    model = MPNN(T=args.T, p=args.p, target=args.target, output_type=args.output_type, output_dim=args.output_dim,
-                 readout_dim=args.readout_dim)
+    model = MPNN(T=args.T, p=args.p, n_tasks=len(target_list))
     if model_path is not None:
         model.load_state_dict(model_path)
-
+    else:
+        model.init_weights()
     print(model)
+    if args.use_cuda:
+        model.cuda()
+    model.share_memory()  # is this necessary? maybe for when train loop is parallelized
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     loss_fn = get_loss(args)
+    if args.use_cuda:
+        loss_fn.cuda()
 
     print("initializing tensorboard writer...")
     # Create a writer for tensorboard, add the command line arguments and targets to tensorboard
-    if not os.path.exists(root+"logs/"):
-        os.makedirs(root+"logs/")
-    writer = SummaryWriter(root+"logs/"+args.exp_name+"_"+str(exp_time))
+    if not os.path.exists("logs/"):
+        os.makedirs("logs/")
+    writer = SummaryWriter("logs/"+args.exp_name+"_"+str(exp_time))
     writer.add_text('args', str(sys.argv))
-    writer.add_text("target", str(args.target))
+    writer.add_text("targets", str(args.target_list))
 
 
     global_step = 0
@@ -80,23 +93,22 @@ if __name__ == "__main__":
             optimizer.zero_grad()
 
             # take a training step, i.e. process the mini-batch and accumulate gradients
-            train_dict = model.train_step(batch=batch, loss_fn=loss_fn)
+            train_dict = train_step(model=model, batch=batch, target_list=target_list, loss_fn=loss_fn,
+                                    use_cuda=args.use_cuda)
 
             print("epoch: {} \t step: {} \t train loss: {}".format(epoch, idx,
                                                                              train_dict["loss"].data))
 
             if idx % 10 == 0:
-
                 # take a validation step for every 10 training steps
-                val_dict = model.validation_step(batch=next(iter(molecule_loader_val)), loss_fn=loss_fn)
-
+                val_dict = validation_step(model=model, batch=next(iter(molecule_loader_val)), loss_fn=loss_fn,
+                                           target_list=target_list, use_cuda=args.use_cuda)
                 print("\n epoch: {} \t step: {} \t val loss: {}".format(epoch, idx,
                                                                         val_dict["loss"].data))
                 # log the information to tensorboard
                 update_tensorboard(writer=writer, train_dict=train_dict, val_dict=val_dict, step=global_step)
             else:
-                # log the information to tensorboard
-
+                # lof the information to tensorboard
                 update_tensorboard(writer=writer, train_dict=train_dict, val_dict=None, step=global_step)
 
             if idx % 100 == 0:

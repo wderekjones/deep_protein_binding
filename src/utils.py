@@ -21,8 +21,7 @@ def get_args():
     parser.add_argument("--p", type=float, help="value for p in dropout layer", default=0.5)
     parser.add_argument("--exp_name", type=str, help="name of the experiment", default="debug")
     parser.add_argument("--scale", type=str, help="type of scaling to use (norm or std)", default=None)
-    parser.add_argument("--target_list", type=str, nargs="+", help="list of targets to train the network with", default=['Uc', 'Ui', 'Hy', 'TPSA(NO)', 'MLOGP', 'MLOGP2', 'SAtot', 'SAacc', 'SAdon', 'Vx', 'VvdwMG', 'VvdwZAZ', 'PDI'])
-    parser.add_argument("--target_file", type=str, help="path to file containing list of targets", default=None)
+    parser.add_argument("--target", type=str, help="target to train the network with", default=None)
     parser.add_argument("--model_path", type=str, help="path to model file to continue training", default=None)
     parser.add_argument("--train_idxs", type=str, help="path to train indexes", default="/u/vul-d1/scratch/wdjo224/deep_protein_binding/src/train.npy")
     parser.add_argument("--test_idxs", type=str, help="path to test indexes", default="/u/vul-d1/scratch/wdjo224/deep_protein_binding/src/test.npy")
@@ -30,7 +29,8 @@ def get_args():
     parser.add_argument("--w_prior", type=str, help="prior distribution to use for multitask loss, unweighted by default", default=None)
     parser.add_argument("--loss", type=str, help="loss function to use (homoscedastic, normal, weighted) ", default="weighted")
     parser.add_argument("--output_type", type=str, help="specify regression (regress) or classification output activation", default="regress")
-    parser.add_argument("--output_dim", type=int, help="output dimension, 1 for regression, n for n class classification", default=1)
+    parser.add_argument("--output_dim", type=int, help="output dimension", default=1)
+    parser.add_argument("--readout_dim", type=int, help="size readout output", default=128)
     args = parser.parse_args()
     
     return args
@@ -39,13 +39,13 @@ def get_args():
 def get_loss(args):
     loss_fn = None
     if args.loss == "homo":
-        loss_fn = MultiTaskHomoscedasticLoss(n_tasks=len(args.target_list), prior=args.w_prior)
+        loss_fn = MultiTaskHomoscedasticLoss(n_tasks=1, prior=args.w_prior)
     elif args.loss == "normal":
-        loss_fn = MultiTaskNormalLoss(n_tasks=len(args.target_list))
+        loss_fn = MultiTaskNormalLoss(n_tasks=1)
     elif args.loss == "weighted":
-        loss_fn = MultiTaskWeightedLoss(n_tasks=len(args.target_list), prior=args.w_prior)
+        loss_fn = MultiTaskWeightedLoss(n_tasks=1, prior=args.w_prior)
     elif args.loss == "bce":
-        loss_fn = MultiTaskBCELoss(n_tasks=len(args.target_list), prior=args.w_prior)
+        loss_fn = MultiTaskBCELoss(n_tasks=1, prior=args.w_prior)
     else:
         raise Exception("loss function not implemented.")
 
