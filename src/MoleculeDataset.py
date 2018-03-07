@@ -18,6 +18,7 @@ class MoleculeDatasetCSV(Dataset):
         self.scaling = scaling
         self.target = target
         cols = ["receptor", "drugID", "smiles", "label"] + [target]
+
         self.data = pd.read_csv(csv_file, usecols=cols)
         self.corrupt_compound_df = pd.read_csv(corrupt_path)
         self.data = self.data[~self.data.drugID.isin(self.corrupt_compound_df.drugID)]
@@ -40,6 +41,7 @@ class MoleculeDatasetCSV(Dataset):
         item_dict["smiles"] = compound["smiles"]
         item_dict[self.target] = torch.from_numpy(np.asarray([compound[self.target]], dtype=float)).float()
 
+
         return item_dict
 
 
@@ -49,6 +51,7 @@ class MoleculeDatasetH5(Dataset):
         self.num_workers = num_workers
 #         TODO: make sure targets is iterable
         self.targets = target
+
         self._cuda= cuda
         self.fo_dict = {}
         self.compound_df = pd.DataFrame()
@@ -113,3 +116,4 @@ if __name__ == "__main__":
     print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size, num_iters, num_workers))
     for idx, batch in tqdm(enumerate(mydata), total=num_iters):
         pass
+

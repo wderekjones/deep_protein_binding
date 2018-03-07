@@ -6,7 +6,6 @@ from torch.autograd import Variable
 import numpy as np
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import r2_score, precision_score, recall_score, f1_score, accuracy_score
-
 import dc_features as dc
 from rdkit import Chem
 
@@ -74,6 +73,7 @@ class MPNN(nn.Module):
         mol = self.construct_multigraph(smiles)
         h = mol["h"]
         g = mol["g"]
+
         h2 = h
         g2 = g
 
@@ -108,6 +108,7 @@ class MPNN(nn.Module):
 
         return {"g":g, "h":h}
 
+
     def train_step(self, batch, loss_fn):
         # make sure model is in train mode
         self.train()
@@ -139,11 +140,13 @@ class MPNN(nn.Module):
             batch_dict = {key: {"batch_size": len(batch), "pred": [], "true": [], "loss": [], "metrics": {"r2": []}} for
                           key in
                           [self.target]}
+
         elif self.output_type == "class":
             batch_dict = {
             key: {"batch_size": len(batch), "pred": [], "true": [], "loss": [], "metrics": {"acc": [], "prec": [],
                                                                                             "rec": [], "f1": []}} for
             key in [self.target]}
+
 
         start_clock = time.clock()
 
@@ -175,6 +178,7 @@ class MPNN(nn.Module):
                                                                 y_pred=np.argmax(y_pred, axis=1))
             batch_dict[self.target]["metrics"]["f1"] = f1_score(y_true=np.argmax(y_true.data.numpy(), axis=1),
                                                            y_pred=np.argmax(y_pred, axis=1))
+
 
         stop_clock = time.clock()
 

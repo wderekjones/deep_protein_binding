@@ -6,6 +6,7 @@ if __name__ == "__main__":
     # mp.set_start_method("spawn")
     mp.set_sharing_strategy("file_system")
     mp = mp.get_context("spawn")
+
     import os
     import time
     import sys
@@ -66,6 +67,7 @@ if __name__ == "__main__":
     writer.add_text('args', str(sys.argv))
     writer.add_text("target", str(args.target))
 
+
     global_step = 0
 
     # Train the model
@@ -94,6 +96,7 @@ if __name__ == "__main__":
                 update_tensorboard(writer=writer, train_dict=train_dict, val_dict=val_dict, step=global_step)
             else:
                 # log the information to tensorboard
+
                 update_tensorboard(writer=writer, train_dict=train_dict, val_dict=None, step=global_step)
 
             if idx % 100 == 0:
