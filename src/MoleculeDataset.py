@@ -5,74 +5,28 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
-from torch.autograd import Variable
-import dc_features as dc
 from sklearn.utils import shuffle
 from sklearn.preprocessing import StandardScaler, Normalizer
-from rdkit import Chem
 
 
-class MoleculeDataset(Dataset):
-    def __init__(self,cuda=False):
-        super(MoleculeDataset,self)
-        self._cuda = cuda
+class MoleculeDatasetCSV(Dataset):
 
-    def construct_multigraph(self, smile):
-        g = {}
-        h = {}
-        molecule = Chem.MolFromSmiles(smile)
-        for i in range(0, molecule.GetNumAtoms()):
-            atom_i = molecule.GetAtomWithIdx(i)
-            if self._cuda:
-                h[i] = Variable(
-                    torch.from_numpy(dc.atom_features(atom_i, explicit_H=True)).view(1, 70)).float().cuda()
-            else:
-                h[i] = Variable(
-                    torch.from_numpy(dc.atom_features(atom_i, explicit_H=True)).view(1, 70)).float()
-
-            for j in range(0, molecule.GetNumAtoms()):
-                e_ij = molecule.GetBondBetweenAtoms(i, j)
-                if e_ij is not None:
-                    # e_ij = map(lambda x: 1 if x == True else 0,
-                    #             dc.feat.graph_features.bond_features(e_ij))  # ADDED edge feat
-                    e_ij = map(lambda x: 1 if x == True else 0,
-                        dc.bond_features(e_ij))
-                    if self._cuda:
-                        e_ij = Variable(torch.from_numpy(np.fromiter(e_ij, dtype=float))).view(1, 6).float().cuda()
-                    else:
-                        e_ij = Variable(torch.from_numpy(np.fromiter(e_ij, dtype=float))).view(1, 6).float()
-                    atom_j = molecule.GetAtomWithIdx(j)
-                    if i not in g:
-                        g[i] = []
-                        g[i].append((e_ij, j))
-
-        return g, h
-
-    def __len__(self):
-        raise Exception("Not implemented for abstract class")
-
-    def __getitem__(self, item):
-        raise Exception("Not implemented for abstract class")
-
-
-class MoleculeDatasetCSV(MoleculeDataset):
-
-    def __init__(self, csv_file, targets, corrupt_path, cuda=False, scaling=None):
+    def __init__(self, csv_file, target, corrupt_path, cuda=False, scaling=None):
         super(MoleculeDatasetCSV, self).__init__()
         self.csv_file = csv_file
         self._cuda = cuda
         self.scaling = scaling
-        self.targets = targets
-        cols = ["receptor", "drugID", "smiles", "label"] + targets
+        self.target = target
+        cols = ["receptor", "drugID", "smiles", "label"] + [target]
         self.data = pd.read_csv(csv_file, usecols=cols)
         self.corrupt_compound_df = pd.read_csv(corrupt_path)
         self.data = self.data[~self.data.drugID.isin(self.corrupt_compound_df.drugID)]
         if self.scaling == "std":
             print("standardizing data...")
-            self.data[self.targets] = StandardScaler().fit_transform(self.data[self.targets])
+            self.data[self.target] = StandardScaler().fit_transform(self.data[self.target])
         elif self.scaling == "norm":
             print("normalizing data...")
-            self.data[self.targets] = Normalizer().fit_transform(self.data[self.targets])
+            self.data[self.target] = Normalizer().fit_transform(self.data[self.target])
 
         self.activities = self.data["label"]
 
@@ -82,21 +36,19 @@ class MoleculeDatasetCSV(MoleculeDataset):
     def __getitem__(self, item):
         # TODO: should an ordered dict be used here if number of targets becomes large?
         compound = self.data.iloc[item]
-        smiles = compound["smiles"]
-        data = self.construct_multigraph(smiles)
-        item_dict = {"g": data[0], "h": data[1]}
-        for target in self.targets:
-            item_dict[target] = np.asarray([compound[target]],dtype=float)
+        item_dict = {}
+        item_dict["smiles"] = compound["smiles"]
+        item_dict[self.target] = torch.from_numpy(np.asarray([compound[self.target]], dtype=float)).float()
 
         return item_dict
 
 
-class MoleculeDatasetH5(MoleculeDataset):
-    def __init__(self, data_dir, list_dir, corrupt_path, targets, num_workers, cuda=False):
+class MoleculeDatasetH5(Dataset):
+    def __init__(self, data_dir, list_dir, corrupt_path, target, num_workers, cuda=False):
         super(MoleculeDatasetH5, self).__init__()
         self.num_workers = num_workers
 #         TODO: make sure targets is iterable
-        self.targets = targets
+        self.targets = target
         self._cuda= cuda
         self.fo_dict = {}
         self.compound_df = pd.DataFrame()
@@ -132,7 +84,7 @@ class MoleculeDatasetH5(MoleculeDataset):
         data = self.construct_multigraph(self.fo[receptor][drugID]["smiles"][()][0])
 
         return {"g": data[0], "h": data[1],
-                 "target": np.asarray(target_list).astype('float')}
+                 "target": torch.from_numpy(np.asarray(target_list).astype('float')).float()}
 
 
 if __name__ == "__main__":
@@ -160,5 +112,4 @@ if __name__ == "__main__":
     mydata = DataLoader(data, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn)
     print("batch size: {} \t num_iterations: {} \t num_workers: {}".format(batch_size, num_iters, num_workers))
     for idx, batch in tqdm(enumerate(mydata), total=num_iters):
-        # just here to take up space
-        x = batch
+        pass
