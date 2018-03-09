@@ -1,10 +1,6 @@
-import time
 import torch
 import numpy as np
 import argparse
-from torch.autograd import Variable
-from sklearn.metrics import r2_score
-from tqdm import tqdm
 from loss import MultiTaskHomoscedasticLoss, MultiTaskNormalLoss, MultiTaskWeightedLoss, MultiTaskBCELoss
 
 
@@ -20,6 +16,7 @@ def get_args():
     parser.add_argument("--n_epochs", type=int, help="number of training epochs", default=1)
     parser.add_argument("--use_cuda", type=bool, help="indicates whether to use gpu", default=False)
     parser.add_argument("--lr", type=float, help="learning rate to use for training", default=1e-3)
+    parser.add_argument("--momentum", type=float, help="momentum term", default=0.9)
     parser.add_argument("--p", type=float, help="value for p in dropout layer", default=0.5)
     parser.add_argument("--exp_name", type=str, help="name of the experiment", default="debug")
     parser.add_argument("--scale", type=str, help="type of scaling to use (norm or std)", default=None)
@@ -33,25 +30,32 @@ def get_args():
     parser.add_argument("--output_type", type=str, help="specify regression (regress) or classification output activation", default="regress")
     parser.add_argument("--output_dim", type=int, help="output dimension", default=1)
     parser.add_argument("--readout_dim", type=int, help="size readout output", default=128)
+    parser.add_argument("--opt", type=str, help="optimizer to use during training", default="adam")
     args = parser.parse_args()
     
     return args
 
 
 def get_loss(args):
-    loss_fn = None
     if args.loss == "homo":
-        loss_fn = MultiTaskHomoscedasticLoss(n_tasks=1, prior=args.w_prior)
+        return MultiTaskHomoscedasticLoss(n_tasks=1, prior=args.w_prior)
     elif args.loss == "normal":
-        loss_fn = MultiTaskNormalLoss(n_tasks=1)
+        return MultiTaskNormalLoss(n_tasks=1)
     elif args.loss == "weighted":
-        loss_fn = MultiTaskWeightedLoss(n_tasks=1, prior=args.w_prior)
+        return MultiTaskWeightedLoss(n_tasks=1, prior=args.w_prior)
     elif args.loss == "bce":
-        loss_fn = MultiTaskBCELoss(n_tasks=1, prior=args.w_prior)
+        return MultiTaskBCELoss(n_tasks=1, prior=args.w_prior)
     else:
-        raise Exception("loss function not implemented.")
+        return None
 
-    return loss_fn
+
+def get_opt(args):
+    if args.opt == "adam":
+        return torch.optim.Adam
+    elif args.opt == "sgd":
+        return torch.optim.SGD
+    else:
+        return None
 
 
 def collate_fn(batch):

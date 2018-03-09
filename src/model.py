@@ -1,5 +1,4 @@
 import time
-from tqdm import tqdm
 import torch
 from torch import nn
 from torch.autograd import Variable
@@ -147,7 +146,7 @@ class MPNN(nn.Module):
 
         start_clock = time.clock()
 
-        for data in tqdm(batch, total=len(batch)):
+        for data in batch:
 
             # Forward pass: compute output of the network by passing x through the model. Get N outputs as a result
             y_pred = self.forward(data["smiles"])
