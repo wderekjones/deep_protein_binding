@@ -72,6 +72,8 @@ def update_tensorboard(writer, train_dict, val_dict, step):
             for metric in train_dict["batch_dict"][target]["metrics"].keys():
                 writer.add_scalar("train_"+target+"_"+str(metric), float(np.mean(train_dict["batch_dict"][target]["metrics"][metric])), step)
 
+# use histograms for validation instead?
+
     if val_dict is not None:
         writer.add_scalar("val_loss", float(val_dict["loss"]), step)
         writer.add_scalar("val_time", float(val_dict["time"]), step)
