@@ -42,14 +42,14 @@ class MPNN(nn.Module):
                 # elif 'bias' in param[0]
         return n_units
 
-    def output(self, h, h2):
-        hidden_output = self.readout(h, h2)
+    def readout(self, h, h2):
+        hidden_output = self.output(h, h2)
         if self.output_type == "regress":
             return self.output_layer(hidden_output) # use a ReLU here?
         elif self.output_type == "class":
             return nn.Softmax()(self.output_layer(hidden_output))
 
-    def readout(self, h, h2):
+    def output(self, h, h2):
         catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
         return torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0)
 
@@ -78,7 +78,7 @@ class MPNN(nn.Module):
 
         for k in range(0, self.T):
             self.message_pass(h=h, g=g, k=k)
-        x = self.output(h=h, h2=h2)
+        x = self.readout(h=h, h2=h2)
         return x
 
     def construct_multigraph(self, smiles):

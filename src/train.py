@@ -1,15 +1,16 @@
+import sys
+sys.path.append("/scratch/wdjo224/deep_protein_binding")
 import os
 import torch
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
-import sys
+import pandas as pd
 from torch.utils.data import DataLoader
-from utils import get_args,get_opt, update_tensorboard
-from MoleculeDataset import MoleculeDatasetCSV
+from src.utils import get_parser, update_tensorboard, collate_fn, get_loss
+from src.MoleculeDataset import MoleculeDatasetCSV
 from tensorboardX import SummaryWriter
-from utils import collate_fn, get_loss
 
-args = get_args()
+args = get_parser().parse_args()
 
 root = "/scratch/wdjo224/deep_protein_binding"
 experiment_path = root + "/" + "experiments" + "/" + args.exp_name
@@ -21,6 +22,9 @@ log_path = root + "/" + "logs" + "/" + args.exp_name
 if not os.path.exists(experiment_path):
     print("creating experiment path...")
     os.makedirs(experiment_path)
+
+# dump the arguments to a file
+pd.DataFrame(vars(args),index=[0]).to_csv(experiment_path+"/args.csv")
 
 # create a directory to store checkpoints
 if not os.path.exists(checkpoint_path):
@@ -50,7 +54,7 @@ def train(rank, args, model):
 
     print("loading data...")
 
-    molecules = MoleculeDatasetCSV(csv_file=args.D, corrupt_path=args.c, target=args.target, cuda=args.use_cuda,
+    molecules = MoleculeDatasetCSV(csv_file=args.D, corrupt_path=args.c, target=args.target,
                                    scaling=args.scale)
 
     batch_size = args.batch_size
@@ -69,7 +73,7 @@ def train(rank, args, model):
 
     global_step = 0
     for epoch in range(0, args.n_epochs):
-        train_epoch(rank=rank, epoch=epoch, global_step=global_step, model=model,
+        global_step = train_epoch(rank=rank, epoch=epoch, global_step=global_step, model=model,
                     molecule_loader_train=molecule_loader_train, optimizer=optimizer, loss_fn=loss_fn, writer=writer)
         print("Saving model checkpoint...")
         torch.save(model.state_dict(), checkpoint_path + "/" + "p{}".format(os.getpid()) + "_epoch{}".format(epoch)
@@ -109,6 +113,8 @@ def train_epoch(rank, epoch, global_step, model, molecule_loader_train, optimize
         # increment the global step variable
         global_step += 1
 
+    return global_step
+
 
 def val_epoch(model, molecule_loader_val, epoch, loss_fn, writer):
     pid = os.getpid()
@@ -130,7 +136,7 @@ def main():
     import torch.multiprocessing as mp
     mp.set_sharing_strategy("file_system")
     mp = mp.get_context("forkserver")
-    from model import MPNN
+    from src.model import MPNN
 
     torch.manual_seed(args.seed)
 

@@ -1,17 +1,19 @@
 import torch
 import numpy as np
 import argparse
-from loss import MultiTaskHomoscedasticLoss, MultiTaskNormalLoss, MultiTaskWeightedLoss, MultiTaskBCELoss
+from src.loss import MultiTaskHomoscedasticLoss, MultiTaskNormalLoss, MultiTaskWeightedLoss, MultiTaskBCELoss
 
 
-def get_args():
+def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, help="random number seed", default=0)
-    parser.add_argument('-D', type=str, help="path to dataset", default="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv")
-    parser.add_argument('-c', type=str, help="path to corrupted inputs", default="/u/vul-d1/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv")
+    parser.add_argument('-D', type=str, help="path to dataset", default="/scratch/wdjo224/data/deep_protein_binding/kinase_no_duplicates_with_smiles.csv")
+    parser.add_argument('-c', type=str, help="path to corrupted inputs", default="/scratch/wdjo224/data/deep_protein_binding/corrupt_inputs.csv")
     parser.add_argument("--T", type=int, help="number of message passing steps", default=3)
     parser.add_argument("--n_workers", type=int, help="number of workers to use in data loader", default=0)
-    parser.add_argument("--n_train_process", type=int, help="number of processes to use for training")
+    parser.add_argument("--n_train_process", type=int, help="number of processes to use for training", default=1)
+    parser.add_argument("--n_test_process", type=int, help="number of processes to use for testing", default=1)
+    parser.add_argument("--pid", type=str, help="training pid")
     parser.add_argument("--batch_size", type=int, help="batch size to use in data loader", default=1)
     parser.add_argument("--n_epochs", type=int, help="number of training epochs", default=1)
     parser.add_argument("--use_cuda", type=bool, help="indicates whether to use gpu", default=False)
@@ -22,18 +24,18 @@ def get_args():
     parser.add_argument("--scale", type=str, help="type of scaling to use (norm or std)", default=None)
     parser.add_argument("--target", type=str, help="target to train the network with", default=None)
     parser.add_argument("--model_path", type=str, help="path to model file to continue training", default=None)
-    parser.add_argument("--train_idxs", type=str, help="path to train indexes", default="/u/vul-d1/scratch/wdjo224/deep_protein_binding/src/train.npy")
-    parser.add_argument("--test_idxs", type=str, help="path to test indexes", default="/u/vul-d1/scratch/wdjo224/deep_protein_binding/src/test.npy")
-    parser.add_argument("--val_idxs", type=str, help="path to validation indexes", default="/u/vul-d1/scratch/wdjo224/deep_protein_binding/src/val.npy")
+    parser.add_argument("--train_idxs", type=str, help="path to train indexes", default="/scratch/wdjo224/deep_protein_binding/src/train.npy")
+    parser.add_argument("--test_idxs", type=str, help="path to test indexes", default="/scratch/wdjo224/deep_protein_binding/src/test.npy")
+    parser.add_argument("--val_idxs", type=str, help="path to validation indexes", default="/scratch/wdjo224/deep_protein_binding/src/val.npy")
     parser.add_argument("--w_prior", type=str, help="prior distribution to use for multitask loss, unweighted by default", default=None)
     parser.add_argument("--loss", type=str, help="loss function to use (homoscedastic, normal, weighted) ", default="weighted")
     parser.add_argument("--output_type", type=str, help="specify regression (regress) or classification output activation", default="regress")
     parser.add_argument("--output_dim", type=int, help="output dimension", default=1)
     parser.add_argument("--readout_dim", type=int, help="size readout output", default=128)
     parser.add_argument("--opt", type=str, help="optimizer to use during training", default="adam")
-    args = parser.parse_args()
-    
-    return args
+    parser.add_argument("--epoch", type=int, help="epoch from which to load weights", default=4)
+
+    return parser
 
 
 def get_loss(args):
