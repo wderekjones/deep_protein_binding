@@ -15,10 +15,13 @@ from src.MoleculeDataset import MoleculeDatasetCSV
 from src.utils import collate_fn, get_loss, get_parser
 
 #TODO: output feature vectors
+#TODO: set variables as volatile=true
+
+debug = False
 
 args = get_parser().parse_args()
 
-test_idxs = np.array_split(np.fromfile(args.val_idxs, dtype=np.int), args.n_test_process)
+test_idxs = np.array_split(np.fromfile(args.test_idxs, dtype=np.int), args.n_test_process)
 
 output_path = "/scratch/wdjo224/deep_protein_binding/experiments/" + args.exp_name + "/test_results/{}".format(args.pid)
 
@@ -26,7 +29,7 @@ output_path = "/scratch/wdjo224/deep_protein_binding/experiments/" + args.exp_na
 def test(rank, model):
     idxs = test_idxs[rank]
     print("pid: {}".format(os.getpid()))
-    result_summary = pd.DataFrame({"idx": [], "pred": [], "true": [], "loss": []})
+    result_summary = None
 
     molecules = MoleculeDatasetCSV(
         csv_file=args.D,
@@ -41,25 +44,29 @@ def test(rank, model):
         for batch in molecule_loader:
             val_dict = model.validation_step(batch=batch, loss_fn=loss_fn)
 
-            result_summary = pd.concat([result_summary, pd.DataFrame({"idx": [idx],
-                                                                "loss": [val_dict["batch_dict"][key]["loss"]],
-                                                                "pred": [val_dict["batch_dict"][key]["pred"]],
-                                                                "true": [val_dict["batch_dict"][key]["true"]]}
-                                                                for key in val_dict["batch_dict"].keys())], axis=0)
+            result_summary = pd.concat([result_summary, pd.DataFrame(({"idx": idx,
+                                                                "loss": val_dict["batch_dict"][key]["loss"][0],
+                                                                "pred": val_dict["batch_dict"][key]["pred"][0],
+                                                                "true": val_dict["batch_dict"][key]["true"][0]}
+                                                                for key in val_dict["batch_dict"].keys()), index=[0])],
+                                                                axis=0)
+        if debug == True:
+            break
     end_time = time.clock()
 
     print("evaluation finished in {} cpu seconds. writing results...".format((end_time-start_time)))
 
     # convert the pred and true columns to numpy objects...have some messy shapes/etc so clean this up here
-    result_summary.idx = result_summary.idx.apply(lambda x: x[0])
-    result_summary.pred = result_summary.pred.apply(lambda x: [x[0][0][0].data.numpy()[0], x[0][0][1].data.numpy()[0]])
-    result_summary.true = result_summary.true.apply(lambda x: [x[0][0][0].data.numpy()[0], x[0][0][1].data.numpy()[0]])
-    result_summary.loss = result_summary.loss.apply(lambda x: x[0][0])
+    result_summary.pred = result_summary.pred.apply(lambda x: x.data.numpy())
+    result_summary.true = result_summary.true.apply(lambda x: x.data.numpy())
 
     result_summary = result_summary.reset_index()
 
-    result_summary.to_csv(output_path+"/test_results_{}.csv".format(rank))
+    if debug == True:
+        print(result_summary.head())
 
+    else:
+        result_summary.to_csv(output_path+"/test_results_{}.csv".format(rank))
 
 def main():
 
@@ -67,7 +74,7 @@ def main():
     print("run parameters: {}".format(sys.argv))
 
     import torch.multiprocessing as mp
-    mp.set_sharing_strategy("file_system")
+    mp.set_sharing_strategy("file_system")  #is this necessary?ss
 
     # if output path does not exist, create it
     if not os.path.exists(output_path):

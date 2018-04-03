@@ -23,8 +23,13 @@ if not os.path.exists(experiment_path):
     print("creating experiment path...")
     os.makedirs(experiment_path)
 
-# dump the arguments to a file
-pd.DataFrame(vars(args),index=[0]).to_csv(experiment_path+"/args.csv")
+# dump the arguments to a file..had to do some weird things here to get things to work with eval script (temp)
+pd.DataFrame(vars(args), index=[0]).to_csv(experiment_path+"/args.csv")
+df = pd.read_csv(experiment_path+"/args.csv", index_col=0)
+df = df.transpose().reset_index()["index"].apply(lambda x: "--"+x+"=").map(str) + \
+df.transpose().reset_index()[0].map(str)
+df = df.drop(df[df.str.contains("nan")].index)
+pd.DataFrame(df).to_csv(experiment_path+"/args.csv")
 
 # create a directory to store checkpoints
 if not os.path.exists(checkpoint_path):
@@ -61,7 +66,7 @@ def train(rank, args, model):
     train_idxs = np.fromfile(args.train_idxs, dtype=np.int)
     val_idxs = np.fromfile(args.val_idxs, dtype=np.int)
 
-    molecule_loader_train = DataLoader(molecules, batch_size=batch_size, num_workers=args.n_workers,
+    molecule_loader_train = DataLoader(molecules, batch_size=batch_size, num_workers=0,
                                        collate_fn=collate_fn,
                                        sampler=SubsetRandomSampler(train_idxs))
     # molecule_loader_val = DataLoader(molecules, batch_size=batch_size, num_workers=args.n_workers,

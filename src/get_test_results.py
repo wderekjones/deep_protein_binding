@@ -26,12 +26,17 @@ for root, dirs, files in tqdm(os.walk(args.exp_dir), total=len(os.listdir(args.e
         for file in os.listdir(root):
             test_df = pd.concat([test_df, pd.read_csv(root + "/" + file, index_col=0)])
         score = None
+
         if args.exp_type == "class":
-            score = f1_score(np.asarray(test_df.true.apply(lambda x: np.argmax(eval(x))).values),
-                                 np.asarray(test_df.pred.apply(lambda x: np.argmax(eval(x))).values))
+            y_true = test_df.true.apply(lambda x: np.argmax(np.fromstring(x.strip("[ ]"), sep=" ", dtype=np.float32)))
+            y_pred = test_df.pred.apply(lambda x: np.argmax(np.fromstring(x.strip("[ ]"), sep=" ", dtype=np.float32)))
+            score = f1_score(y_pred=y_pred, y_true=y_true)
+
         elif args.exp_type == "reg":
-            score = r2_score(np.asarray(test_df.true.apply(lambda x: eval(x)).values),
-                                 np.asarray(test_df.pred.apply(lambda x: eval(x)).values))
+            y_true = test_df.true.apply(lambda x: np.fromstring(x.strip("[ ]"), sep=" ", dtype=np.float32))
+            y_pred = test_df.pred.apply(lambda x: np.fromstring(x.strip("[ ]"), sep=" ", dtype=np.float32))
+            score = r2_score(y_pred=y_pred, y_true=y_true)
+
         else:
             raise Exception("not a valid output type")
         test_list.append({"path": root, "score": score, "process": process})

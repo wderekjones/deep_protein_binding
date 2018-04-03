@@ -1,0 +1,12 @@
+,n_process,path,process,score
+0,1,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:39:59_1/test_results/p86268_epoch4,p86268,0.8306690349319125
+1,2,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_2/test_results/p30309_epoch4,p30309,0.8605990783410138
+2,3,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_3/test_results/p7550_epoch4,p7550,0.8690647482014388
+3,4,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_4/test_results/p92826_epoch4,p92826,0.8770726129216695
+4,5,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_5/test_results/p28637_epoch4,p28637,0.8725801791389772
+5,6,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_6/test_results/p118206_epoch4,p118206,0.8709227766936158
+6,7,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_7/test_results/p117926_epoch4,p117926,0.8796400449943758
+7,8,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_8/test_results/p82670_epoch4,p82670,0.8812621090506505
+8,9,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_9/test_results/p6090_epoch4,p6090,0.8728559760413831
+9,10,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_10/test_results/p123670_epoch4,p123670,0.8814520703346568
+10,11,/scratch/wdjo224/deep_protein_binding/experiments/best_model_search_19:40:03_11/test_results/p9949_epoch4,p9949,0.8799777220829852

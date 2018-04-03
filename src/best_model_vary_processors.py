@@ -12,9 +12,9 @@ best_model_args = pd.read_csv("/scratch/wdjo224/deep_protein_binding/experiments
 for i in tqdm(range(1, 15)):
     sbatch_env_setup = "source activate deep_protein_binding ; " \
                        "export LD_PRELOAD=/home/wdjo224/anaconda3/lib/libstdc++.so.6.0.24;"
-    sbatch_base = "sbatch -p GPU2 --wrap '" + sbatch_env_setup + \
+    sbatch_base = "sbatch -p Long --wrap '" + sbatch_env_setup + \
                   " python /scratch/wdjo224/deep_protein_binding/src/train.py"
     sbatch_param_sample = "--n_train_process={}'".format(i)
     batch_args = str(" ".join(best_model_args["0"].values.tolist())) + " --exp_name=best_model_search" + \
-    "_$(date +%T)_{} ".format(i) + sbatch_param_sample
+    "_$(date +%T)_{} ".format(i) + sbatch_param_sample + " --n_workers=0"
     os.system(sbatch_base+" "+batch_args)
