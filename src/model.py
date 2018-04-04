@@ -10,12 +10,13 @@ import dc_features as dc
 from rdkit import Chem
 
 
-#TODO: is it a good idea to have the validation, train, and step methods defined within the class? is this causing problems when using multiprocessing?
+# TODO: is it a good idea to have the validation, train, and step methods defined within the class? is this causing problems when using multiprocessing?
 
 
 class MPNN(nn.Module):
 
-    def __init__(self, target, T=3, p=0.5, n_atom_feats=70, n_bond_feats=146, readout_dim=128, name="mpnn", output_type="regress",
+    def __init__(self, target, T=3, p=0.5, n_atom_feats=70, n_bond_feats=146, readout_dim=128, name="mpnn",
+                 output_type="regress",
                  output_dim=1):
         super(MPNN, self).__init__()
         self.T = T
@@ -23,15 +24,15 @@ class MPNN(nn.Module):
         self.output_type = output_type
         self.output_dim = output_dim
         self.readout_dim = readout_dim
-        self.target = target
-        self.n_atom_feats = n_atom_feats # make sure this is correct naming
-        self.n_bond_feats = n_bond_feats # make sure this is correct naming
+        self.target = target  # need to remove this
+        self.n_atom_feats = n_atom_feats  # make sure this is correct naming
+        self.n_bond_feats = n_bond_feats  # make sure this is correct naming
         self.R = nn.Linear(140, self.readout_dim)
         self.U = nn.ModuleList([nn.Linear(self.n_bond_feats, self.n_atom_feats)] * self.T)
         self.V = nn.ModuleList([nn.Linear(self.n_atom_feats, self.n_atom_feats)] * self.T)
         self.E = nn.Linear(6, 6)
         self.output_layer = nn.Linear(self.readout_dim, self.output_dim)
-        self.dropout = nn.Dropout(p=p)
+        self.dropout = nn.Dropout(p=p)  # need to remove this
 
     def get_n_hidden_units(self):
         n_units = 0
@@ -45,41 +46,44 @@ class MPNN(nn.Module):
     def readout(self, h, h2):
         hidden_output = self.output(h, h2)
         if self.output_type == "regress":
-            return self.output_layer(hidden_output) # use a ReLU here?
+            return self.output_layer(hidden_output)
         elif self.output_type == "class":
             return nn.Softmax()(self.output_layer(hidden_output))
 
     def output(self, h, h2):
         catted_reads = map(lambda x: torch.cat([h[x[0]], h2[x[1]]], dim=1), zip(h2.keys(), h.keys()))
-        return torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)),dim=0),dim=0)
+        return torch.sum(torch.cat(list(map(lambda x: nn.ReLU()(self.R(x)), catted_reads)), dim=0), dim=0)
 
-    def message_pass(self,g,h,k):
-        # for each node v in the graph G
+    def message_pass(self, g, h, k):
+        # for each node v in the molecular graph
         for v in g.keys():
             neighbors = g[v]
             # for each neighbor of v
             for neighbor in neighbors:
-                e_vw = neighbor[0]  # get the edge feature variable
-                w = neighbor[1]  # get the bond? feature variable?
+                e_vw = neighbor[0]  # get the edge feature for nodes v & w
+                w = neighbor[1]  # get the atom index
 
-                m_w = self.V[k](h[w])  # compute the message vector
-                m_e_vw = self.E(e_vw)
-                reshaped = torch.cat((h[v], m_w, m_e_vw), 1)
-                h[v] = nn.ReLU()(self.U[k](reshaped))
+                m_w = self.V[k](h[w])  # get atom w's feature vector, compute the linear transformation
+                m_e_vw = self.E(e_vw)  # compute the linear transformation of the edge v,w vector
+                reshaped = torch.cat((h[v], m_w, m_e_vw),
+                                     1)  # concat v's features with w's message and the edge feature between v and w, then reshape the vector to n by 1
+                h[v] = nn.ReLU()(self.U[k](
+                    reshaped))  # pass the concat vector through a linear transformation, apply the nonlinearity, and get the new hidden state for v
 
     def forward(self, smiles, hidden_pass=False):
-        # if hidden_pass:
-        #     return self.get_shared_hidden_features(h,g)
+
         mol = self.construct_multigraph(smiles)
         h = mol["h"]
         g = mol["g"]
         h2 = h
-        g2 = g
 
         for k in range(0, self.T):
             self.message_pass(h=h, g=g, k=k)
-        x = self.readout(h=h, h2=h2)
-        return x
+
+        if hidden_pass:
+            return self.output(h=h, h2=h2)
+        else:
+            return self.readout(h=h, h2=h2)
 
     def construct_multigraph(self, smiles):
         g = {}
@@ -88,22 +92,22 @@ class MPNN(nn.Module):
         for i in range(0, molecule.GetNumAtoms()):
             atom_i = molecule.GetAtomWithIdx(i)
 
+            # store atom i feature vector
             h[i] = Variable(
                 torch.from_numpy(dc.atom_features(atom_i, explicit_H=True)).view(1, 70)).float()
 
             for j in range(0, molecule.GetNumAtoms()):
                 e_ij = molecule.GetBondBetweenAtoms(i, j)
                 if e_ij is not None:
-                    # e_ij = map(lambda x: 1 if x == True else 0,
-                    #             dc.feat.graph_features.bond_features(e_ij))  # ADDED edge feat
+
                     e_ij = map(lambda x: 1 if x == True else 0,
-                        dc.bond_features(e_ij))
+                               dc.bond_features(e_ij))
 
                     e_ij = Variable(torch.from_numpy(np.fromiter(e_ij, dtype=float))).view(1, 6).float()
-                    atom_j = molecule.GetAtomWithIdx(j)
+
                     if i not in g:
                         g[i] = []
-                        g[i].append((e_ij, j))
+                        g[i].append((e_ij, j))  # tuple of bond bit vector and atom idx
 
         return {"g": g, "h": h}
 
@@ -140,14 +144,14 @@ class MPNN(nn.Module):
                           [self.target]}
         elif self.output_type == "class":
             batch_dict = {
-            key: {"batch_size": len(batch), "pred": [], "true": [], "loss": [], "metrics": {"acc": [], "prec": [],
-                                                                                            "rec": [], "f1": []}} for
-            key in [self.target]}
+                key: {"batch_size": len(batch), "pred": [], "true": [], "loss": [], "metrics": {"acc": [], "prec": [],
+                                                                                                "rec": [], "f1": []}}
+            for
+                key in [self.target]}
 
         start_clock = time.clock()
 
         for data in batch:
-
             # Forward pass: compute output of the network by passing x through the model.
             y_pred = self.forward(data["smiles"])
 
@@ -164,16 +168,16 @@ class MPNN(nn.Module):
         y_pred = torch.stack(batch_dict[self.target]["pred"]).data.numpy()
         if self.output_type == "regress":
             batch_dict[self.target]["metrics"]["r2"] = r2_score(y_true=y_true.data.numpy(),
-                                                           y_pred=y_pred)
+                                                                y_pred=y_pred)
         elif self.output_type == "class":
             batch_dict[self.target]["metrics"]["acc"] = accuracy_score(y_true=np.argmax(y_true.data.numpy(), axis=1),
-                                                                  y_pred=np.argmax(y_pred, axis=1))
+                                                                       y_pred=np.argmax(y_pred, axis=1))
             batch_dict[self.target]["metrics"]["prec"] = precision_score(y_true=np.argmax(y_true.data.numpy(), axis=1),
-                                                                    y_pred=np.argmax(y_pred, axis=1))
+                                                                         y_pred=np.argmax(y_pred, axis=1))
             batch_dict[self.target]["metrics"]["rec"] = recall_score(y_true=np.argmax(y_true.data.numpy(), axis=1),
-                                                                y_pred=np.argmax(y_pred, axis=1))
+                                                                     y_pred=np.argmax(y_pred, axis=1))
             batch_dict[self.target]["metrics"]["f1"] = f1_score(y_true=np.argmax(y_true.data.numpy(), axis=1),
-                                                           y_pred=np.argmax(y_pred, axis=1))
+                                                                y_pred=np.argmax(y_pred, axis=1))
 
         stop_clock = time.clock()
 

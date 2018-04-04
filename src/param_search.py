@@ -27,7 +27,6 @@ for job in tqdm(range(args.N)):
     readout_dim = readout_dist.rvs()
     T = T_dist.rvs()
     batch_size = batch_dist.rvs()
-    # batch_size = 256
     lr = np.random.choice(lr_dist)
     sbatch_env_setup = "source activate deep_protein_binding ; " \
                        "export LD_PRELOAD=/home/wdjo224/anaconda3/lib/libstdc++.so.6.0.24;"
