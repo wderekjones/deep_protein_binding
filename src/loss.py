@@ -106,8 +106,8 @@ class MultiTaskBCELoss(nn.Module):
 
             target_loss = self.loss_weights[idx] * self.loss_list[idx](torch.stack(batch_dict[target]["pred"]).float(),
                                     torch.stack(batch_dict[target]["true"]).float())
-            batch_dict[target]["loss"] = target_loss.data.cpu().numpy().ravel()
-            batch_dict[target]["loss_weight"] = self.loss_weights[idx].data.cpu().numpy()
+            batch_dict[target]["loss"] = target_loss.data.numpy().ravel()
+            batch_dict[target]["loss_weight"] = self.loss_weights[idx].data.numpy()
             loss += target_loss
 
         return loss

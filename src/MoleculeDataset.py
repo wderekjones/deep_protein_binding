@@ -23,10 +23,10 @@ class MoleculeDatasetCSV(Dataset):
         self.data = self.data[~self.data.drugID.isin(self.corrupt_compound_df.drugID)]
         if self.scaling == "std":
             print("standardizing data...")
-            self.data[self.target] = StandardScaler().fit_transform(self.data[self.target])
+            self.data[self.target] = StandardScaler().fit_transform(self.data[self.target].values.reshape(-1,1))
         elif self.scaling == "norm":
             print("normalizing data...")
-            self.data[self.target] = Normalizer().fit_transform(self.data[self.target])
+            self.data[self.target] = Normalizer().fit_transform(self.data[self.target].values.reshape(-1,1))
 
         self.activities = self.data["label"]
 
