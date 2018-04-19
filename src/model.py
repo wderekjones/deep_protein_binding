@@ -122,7 +122,7 @@ class MPNN(nn.Module):
 
         return batch_dict
 
-    def validation_step(self, batch, loss_fn):
+    def test_step(self, batch, loss_fn):
         # make sure model is evaluation mode
         self.eval()
 

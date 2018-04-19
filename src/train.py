@@ -69,9 +69,9 @@ def train(rank, args, model):
     molecule_loader_train = DataLoader(molecules, batch_size=batch_size, num_workers=0,
                                        collate_fn=collate_fn,
                                        sampler=SubsetRandomSampler(train_idxs))
-    # molecule_loader_val = DataLoader(molecules, batch_size=batch_size, num_workers=args.n_workers,
-    #                                  collate_fn=collate_fn,
-    #                                  sampler=SubsetRandomSampler(val_idxs))
+    molecule_loader_val = DataLoader(molecules, batch_size=val_idxs.shape[0], num_workers=0,
+                                     collate_fn=collate_fn,
+                                     sampler=SubsetRandomSampler(val_idxs))
 
     loss_fn = get_loss(args)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -80,6 +80,10 @@ def train(rank, args, model):
     for epoch in range(0, args.n_epochs):
         global_step = train_epoch(rank=rank, epoch=epoch, global_step=global_step, model=model,
                     molecule_loader_train=molecule_loader_train, optimizer=optimizer, loss_fn=loss_fn, writer=writer)
+
+        test_epoch(rank=rank, epoch=epoch, model=model, molecule_loader_val=molecule_loader_val, loss_fn=loss_fn,
+                   writer=writer)
+
         print("Saving model checkpoint...")
         torch.save(model.state_dict(), checkpoint_path + "/" + "p{}".format(os.getpid()) + "_epoch{}".format(epoch)
                    + "_params.pth")
@@ -120,20 +124,19 @@ def train_epoch(rank, epoch, global_step, model, molecule_loader_train, optimize
 
     return global_step
 
-
-def val_epoch(model, molecule_loader_val, epoch, loss_fn, writer):
+def test_epoch(rank, epoch, model, molecule_loader_val, loss_fn, writer):
+    torch.manual_seed(args.seed+rank)
     pid = os.getpid()
 
-    val_dict = None
-    for batch in molecule_loader_val:
+    for batch_idx, batch in enumerate(molecule_loader_val):
 
-        val_dict = model.validation_step(batch=batch, loss_fn=loss_fn)
+        # take a training step, i.e. process the mini-batch and accumulate gradients
+        val_dict = model.test_step(batch=batch, loss_fn=loss_fn)
 
-        print("\n pid: {} \t epoch: {} \t val loss: {}".format(pid, epoch,
-                                                                       val_dict["loss"].data))
+        # log the information to tensorboard
+        update_tensorboard(writer=writer, train_dict=None, val_dict=val_dict, step=epoch)
 
-    # log the information to tensorboard
-    update_tensorboard(writer=writer, train_dict=None, val_dict=val_dict, step=epoch)
+        print("pid: {} \t epoch: {} \t val loss: {}".format(pid, epoch, val_dict["loss"].data))
 
 
 def main():
